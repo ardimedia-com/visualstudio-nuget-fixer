@@ -1,6 +1,6 @@
 ---
-status: Draft
-updated: 2026-03-27 21:30h
+status: Stable
+updated: 2026-03-29 12:00h
 references:
   - ../../../github/ardimedia/visualstudio-binding-redirect-fixer/.claude/overview.md — Boilerplate extension architecture
 ---
@@ -839,13 +839,68 @@ The following questions were answered during the spike/PoC (2026-03-27):
 
 **Recommendation:** Defer to Phase 3. For Phase 1-2, show a warning for content packages and let the user handle content files manually. Re-evaluate when Phase 3 is planned.
 
+## Implementation Status (2026-03-29)
+
+### What is implemented
+
+| Feature | Detection | Fix | Tests |
+|---|---|---|---|
+| C1 Outdated (packages.config) | Yes | Yes (XML edit + csproj sync + assembly version) | 10 |
+| C1 Outdated (PackageReference) | Yes | Detection only (update not yet supported) | 7 |
+| C2 Vulnerable | Yes (NuGet Metadata API) | Detection only | 2 |
+| C3 Deprecated | Yes (NuGet Metadata API) | Detection only | 1 |
+| C4 Inconsistent | Yes (cross-project, stable-vs-prerelease filtered) | Yes (consolidate to highest) | 5 |
+| C7 Migration Readiness | Yes (5 blocker types) | Detection only | 6 |
+| C9 Orphaned References | Yes (HintPath, Import, Error guards) | Yes (remove from .csproj) | 10 |
+| F9 Content Package Detection | Yes (folder scan + known list) | Detection only | 5 |
+| Prerelease-Mismatch | Yes (pc prerelease vs pr stable, VS bug documented) | Yes (downgrade to stable) | - |
+| Version Comparison | All edge cases (bogus, zero, padding, major, prerelease suffix) | - | 10 |
+| NuGet Source Discovery | nuget.config hierarchy + VS settings | - | 3 |
+| Feed Queries | Parallel, deduplicated by (id, isPrerelease), Azure Artifacts credential provider | - | 5 |
+| Solution Monitor | 2-pass debounce (10s stabilization) | - | - |
+| Cancel Analyse | Fire-and-forget scan + CancellationTokenSource | - | - |
+| VS Output Window | Dedicated "NuGet Package Fixer" channel | - | - |
+| Context Menu | "Analyse NuGet Packages" on project right-click | - | - |
+| **Total tests** | | | **76** |
+
+### UI Features implemented
+
+- 4 tabs: Package Issues, Configuration, Background, Feedback
+- VS theming (EnvironmentColors for all controls)
+- Column sorting (click anywhere on header)
+- Filters: Project, Category, text search with clear button
+- Detail panel with packages.config/csproj XML entry
+- Context-aware button labels: "Update to X", "Consolidate to X", "Downgrade to Stable X", "Remove from .csproj", "No auto-fix available"
+- Fixed items: checkmark icon, "DONE" suffix, "Fixed" category/severity
+- Analyse/Cancel Analyse/Re-Analyse button toggle
+- Update Shown: batch-apply safe fixes (patch + prerelease only)
+- Backup checkbox (timestamped .bak files)
+- Status bar with scan progress ("Querying 50 of 159: MailKit")
+
+### What is NOT implemented
+
+- PackageReference update (fix) -- Phase 6
+- C5 Package Downgrades (NU1605) -- Phase 8
+- C6 Unused Packages (NU1510) -- Phase 8
+- C8 CPM Adoption wizard -- Phase 8
+- Content package install.ps1 execution -- Phase 3
+- Marketplace publishing -- needs README, CHANGELOG, icon
+
+### Repository
+
+- GitHub: https://github.com/ardimedia-com/visualstudio-nuget-fixer
+- Initial commit: 2026-03-29
+- 39 source files, 6396 lines
+- Solution: `src/nugetpackagefixer.slnx`
+
 ## Boilerplate Reference
 
 Use `visualstudio-binding-redirect-fixer` as the architectural template:
 
 - Extension entry point: `NuGetPackageFixerExtension : Extension`
-- Command: `ScanCommand` in Tools menu
+- Command: `ScanCommand` in Tools menu + `ScanProjectCommand` in Solution Explorer context menu
 - Tool window: `NuGetPackageFixerToolWindow` with RemoteUserControl
 - ViewModel: DataContract-decorated, ObservableList, IAsyncCommand
 - Themed XAML: DynamicResource VS EnvironmentColors, no DataTriggers
-- Services: interface-based, async with CancellationToken
+- Services: static classes for pure logic, instance classes for stateful (NuGetSourceProvider, PackageMetadataService)
+- VS Output Window: `OutputChannel` via `Extensibility.Views().Output`
