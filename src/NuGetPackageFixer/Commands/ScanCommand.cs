@@ -18,6 +18,7 @@ public class ScanCommand : Command
     public override CommandConfiguration CommandConfiguration => new("NuGet Package Fixer")
     {
         TooltipText = "Scan all projects for outdated, vulnerable, or deprecated NuGet packages",
+        Icon = new(ImageMoniker.Custom("NuGetPackageFixer"), IconSettings.IconAndText),
         Placements = [CommandPlacement.KnownPlacements.ToolsMenu],
     };
 

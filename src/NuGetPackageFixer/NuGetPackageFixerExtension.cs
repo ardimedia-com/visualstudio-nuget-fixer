@@ -18,6 +18,7 @@ public class NuGetPackageFixerExtension : Extension
             displayName: "NuGet Package Fixer",
             description: "Scans packages.config and PackageReference projects for outdated, vulnerable, and deprecated NuGet packages.")
         {
+            Icon = ImageMoniker.Custom("Images/NuGetPackageFixer.128.128.png"),
             DotnetTargetVersions = [".net10.0"],
         },
     };

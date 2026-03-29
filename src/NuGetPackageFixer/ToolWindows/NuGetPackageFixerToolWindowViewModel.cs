@@ -22,8 +22,9 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     private readonly NuGetSourceProvider _sourceProvider = new();
     private readonly PackageMetadataService _metadataService = new();
     private readonly OutputChannelLogger _logger;
-    private readonly List<PackageIssue> _allResults = [];
+    private readonly List<PackageIssueViewModel> _allResults = [];
     private readonly Dictionary<string, string> _projectDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _updateCts;
 
     private string _statusText = "Ready. Click Analyse to scan.";
     private string _selectedProject = "All Projects";
@@ -31,7 +32,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     private string _packageFilter = string.Empty;
     private string _sortColumn = "Severity";
     private bool _sortAscending = true;
-    private PackageIssue? _selectedIssue;
+    private PackageIssueViewModel? _selectedIssue;
     private bool _createBackup = true;
     private string _configSourcesText = string.Empty;
     private string _configFilesText = string.Empty;
@@ -61,7 +62,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     #region Properties
 
     [DataMember]
-    public ObservableList<PackageIssue> Issues { get; } = [];
+    public ObservableList<PackageIssueViewModel> Issues { get; } = [];
 
     [DataMember]
     public ObservableList<string> Projects { get; } = [];
@@ -125,7 +126,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     public string FilterClearVisibility => !string.IsNullOrEmpty(_packageFilter) ? "Visible" : "Collapsed";
 
     [DataMember]
-    public PackageIssue? SelectedIssue
+    public PackageIssueViewModel? SelectedIssue
     {
         get => _selectedIssue;
         set
@@ -196,6 +197,10 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         && _selectedIssue.ProjectFormat == "packages.config"
         && (_selectedIssue.SuggestedVersion is not "-"
             || _selectedIssue.Category == IssueCategory.Orphaned);
+
+    /// <summary>Extension version from the assembly.</summary>
+    [DataMember]
+    public string ExtensionVersion => GetType().Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     /// <summary>Button label for the Analyse button (base class handles visibility).</summary>
     [DataMember]
@@ -311,8 +316,15 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
     }
 
+    protected override void OnCancelRequested()
+    {
+        _updateCts?.Cancel();
+    }
+
     public override void Dispose()
     {
+        _updateCts?.Cancel();
+        _updateCts?.Dispose();
         _sourceProvider.Dispose();
         _metadataService.Dispose();
         _logger.Dispose();
@@ -481,7 +493,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 var isContent = contentCache.GetOrAdd($"{pkg.Id}|{pkg.Version}|{project.ProjectDirectory}",
                     _ => ContentPackageDetector.IsContentPackage(pkg.Id, pkg.Version, project.ProjectDirectory));
 
-                var issue = new PackageIssue
+                var issue = new PackageIssueViewModel(new PackageIssue
                 {
                     ProjectName = project.ProjectName,
                     ProjectPath = project.ProjectFilePath,
@@ -500,7 +512,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                     DiagnosticMessage = $"{pkg.Version} -> {result.Version} [{cmp.UpdateType}]"
                         + (isContent ? " [content package]" : "")
                         + (project.Format == "PackageReference" ? " [PackageReference - update not yet supported]" : ""),
-                };
+                });
 
                 _allResults.Add(issue);
                 this.Issues.Add(issue);
@@ -517,7 +529,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 foreach (var orphan in orphaned)
                 {
                     totalOrphaned++;
-                    var issue = new PackageIssue
+                    var issue = new PackageIssueViewModel(new PackageIssue
                     {
                         ProjectName = project.ProjectName,
                         ProjectPath = project.ProjectFilePath,
@@ -533,7 +545,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                         DiagnosticMessage = $"Referenced in .csproj ({orphan.ReferenceTypes}) but not in packages.config. "
                             + "This may be a leftover from a removed package. "
                             + $"Removing will delete {orphan.AffectedLines.Count} element(s) from the .csproj.",
-                    };
+                    });
 
                     _allResults.Add(issue);
                     this.Issues.Add(issue);
@@ -576,7 +588,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                                 ? $"<package id=\"{inc.PackageId}\" version=\"{pv.Version}\" />"
                                 : "";
 
-                            var issue = new PackageIssue
+                            var issue = new PackageIssueViewModel(new PackageIssue
                             {
                                 ProjectName = pv.ProjectName,
                                 ProjectPath = proj.ProjectFilePath,
@@ -592,7 +604,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                                 DiagnosticMessage = $"Version mismatch: this project has {pv.Version}, "
                                     + $"highest in solution is {inc.TargetVersion}. "
                                     + $"Other projects with this version: {allProjectNames}",
-                            };
+                            });
 
                             _allResults.Add(issue);
                             this.Issues.Add(issue);
@@ -627,7 +639,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 {
                     if (prPackageVersions.TryGetValue(pkg.Id, out var stableVersion))
                     {
-                        var issue = new PackageIssue
+                        var issue = new PackageIssueViewModel(new PackageIssue
                         {
                             ProjectName = project.ProjectName,
                             ProjectPath = project.ProjectFilePath,
@@ -644,7 +656,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                             DiagnosticMessage = $"packages.config uses prerelease {pkg.Version}, but PackageReference projects use stable {stableVersion}. "
                                 + "VS NuGet Manager may show the wrong version for this package. "
                                 + "Consider updating to the stable version or keeping the prerelease intentionally.",
-                        };
+                        });
 
                         _allResults.Add(issue);
                         this.Issues.Add(issue);
@@ -702,7 +714,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 if (secInfo.IsVulnerable)
                 {
                     totalVulnerable++;
-                    _allResults.Add(new PackageIssue
+                    _allResults.Add(new PackageIssueViewModel(new PackageIssue
                     {
                         ProjectName = project.ProjectName,
                         ProjectPath = project.ProjectFilePath,
@@ -718,13 +730,13 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                         DiagnosticMessage = $"{secInfo.VulnerabilitySeverity} vulnerability"
                             + (secInfo.VulnerabilityCount > 1 ? $" ({secInfo.VulnerabilityCount} advisories)" : "")
                             + (!string.IsNullOrEmpty(secInfo.AdvisoryUrl) ? $" -- {secInfo.AdvisoryUrl}" : ""),
-                    });
+                    }));
                 }
 
                 if (secInfo.IsDeprecated)
                 {
                     totalDeprecated++;
-                    _allResults.Add(new PackageIssue
+                    _allResults.Add(new PackageIssueViewModel(new PackageIssue
                     {
                         ProjectName = project.ProjectName,
                         ProjectPath = project.ProjectFilePath,
@@ -738,7 +750,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                         DiagnosticMessage = $"Deprecated ({secInfo.DeprecationReasons})"
                             + (!string.IsNullOrEmpty(secInfo.ReplacementPackageId) ? $" -- replace with {secInfo.ReplacementPackageId}" : "")
                             + (!string.IsNullOrEmpty(secInfo.DeprecationMessage) ? $" -- {secInfo.DeprecationMessage}" : ""),
-                    });
+                    }));
                 }
             }
 
@@ -778,7 +790,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                         _ => blocker.Type.ToString(),
                     };
 
-                    var issue = new PackageIssue
+                    var issue = new PackageIssueViewModel(new PackageIssue
                     {
                         ProjectName = project.ProjectName,
                         ProjectPath = project.ProjectFilePath,
@@ -792,7 +804,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                             : IssueSeverity.Info,
                         IsFixableByBatch = false,
                         DiagnosticMessage = blocker.Description,
-                    };
+                    });
 
                     _allResults.Add(issue);
                     this.Issues.Add(issue);
@@ -845,13 +857,13 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             return;
         }
 
-        await this.UpdatePackagesAsync([_selectedIssue], cancellationToken);
+        await this.UpdatePackagesAsync([_selectedIssue]);
     }
 
     /// <summary>
     /// Removes orphaned package references from the .csproj file.
     /// </summary>
-    private Task RemoveOrphanedReferenceAsync(PackageIssue issue)
+    private Task RemoveOrphanedReferenceAsync(PackageIssueViewModel issue)
     {
         if (this.CreateBackup)
         {
@@ -865,9 +877,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
 
         if (removed > 0)
         {
-            issue.IsFixed = true;
-            issue.IsFixableByBatch = false;
-            issue.DiagnosticMessage = $"Fixed: removed {removed} reference(s) from .csproj";
+            issue.MarkAsFixed($"Fixed: removed {removed} reference(s) from .csproj");
             this.StatusText = $"Removed {removed} orphaned reference(s) for {issue.PackageId}. Click Re-Analyse to refresh.";
             _logger.WriteLine($"  Removed {removed} orphaned reference(s) for {issue.PackageId}");
         }
@@ -877,11 +887,6 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             _logger.WriteLine($"  No references found for {issue.PackageId} in .csproj");
         }
 
-        // Force UI refresh: re-set SelectedIssue to trigger detail panel update
-        var fixedIssue = issue;
-        this.SelectedIssue = null;
-        this.ApplyFilters();
-        this.SelectedIssue = fixedIssue;
         this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateSelectedEnabled));
         this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateSelectedButtonLabel));
 
@@ -901,14 +906,17 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             return;
         }
 
-        await this.UpdatePackagesAsync(fixable, cancellationToken);
+        await this.UpdatePackagesAsync(fixable);
     }
 
     /// <summary>
     /// Core update logic: edit packages.config + .csproj path tokens, restore, update assembly versions.
     /// </summary>
-    private async Task UpdatePackagesAsync(List<PackageIssue> issuesToFix, CancellationToken cancellationToken)
+    private async Task UpdatePackagesAsync(List<PackageIssueViewModel> issuesToFix)
     {
+        _updateCts?.Dispose();
+        _updateCts = new CancellationTokenSource();
+        var cancellationToken = _updateCts.Token;
         this.IsScanning = true;
         int updated = 0;
         int failed = 0;
@@ -1016,27 +1024,17 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 if (!issue.IsFixed) continue; // only mark if we set it below
             }
 
-            // Set IsFixed on the issues we processed
+            // Mark successfully updated issues — ViewModel raises property change events
             foreach (var issue in issuesToFix)
             {
-                // Find the issue in our results and mark it
                 var match = _allResults.FirstOrDefault(r =>
                     r.PackageId == issue.PackageId
                     && r.ProjectPath == issue.ProjectPath
                     && r.CurrentVersion == issue.CurrentVersion
                     && !r.IsFixed);
 
-                if (match is not null)
-                {
-                    match.IsFixed = true;
-                    match.IsFixableByBatch = false;
-                    match.DiagnosticMessage = $"Fixed: {match.CurrentVersion} -> {match.SuggestedVersion}";
-                }
+                match?.MarkAsFixed($"Fixed: {match.CurrentVersion} -> {match.SuggestedVersion}");
             }
-
-            // Refresh the visible list to show checkmarks
-            this.SelectedIssue = null;
-            this.ApplyFilters();
             this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
         }
         catch (OperationCanceledException)
@@ -1086,7 +1084,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     {
         this.Issues.Clear();
 
-        IEnumerable<PackageIssue> filtered = _allResults;
+        IEnumerable<PackageIssueViewModel> filtered = _allResults;
 
         // Project filter
         if (_selectedProject != "All Projects")
@@ -1110,7 +1108,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         }
 
         // Sort
-        Func<PackageIssue, string> keySelector = _sortColumn switch
+        Func<PackageIssueViewModel, string> keySelector = _sortColumn switch
         {
             "Package" => i => i.PackageId,
             "Current" => i => i.CurrentVersion,

@@ -36,6 +36,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Images\NuGetPackageFixer.*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
     <Page Remove="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
   </ItemGroup>

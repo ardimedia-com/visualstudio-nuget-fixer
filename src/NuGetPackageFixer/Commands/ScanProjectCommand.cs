@@ -25,7 +25,7 @@ public class ScanProjectCommand : Command
             // Project context menu in Solution Explorer
             CommandPlacement.VsctParent(
                 new Guid("d309f791-903f-11d0-9efc-00a0c911004f"),
-                id: 1026,
+                id: 518,
                 priority: 0x0100),
         ],
     };

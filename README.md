@@ -4,6 +4,8 @@
 
 A Visual Studio 2022/2026 extension that scans your solution for NuGet package issues -- outdated, vulnerable, deprecated, orphaned, and inconsistent packages -- across both `packages.config` and PackageReference projects.
 
+> **Note:** This extension is not yet fully implemented. If you are interested, please [open an issue](https://github.com/ardimedia/visualstudio-nuget-fixer/issues) to let us know.
+
 ## The Problem
 
 Managing NuGet packages in .NET solutions has multiple pain points:
