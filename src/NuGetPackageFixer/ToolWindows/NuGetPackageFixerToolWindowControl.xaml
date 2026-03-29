@@ -1,0 +1,568 @@
+<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+              xmlns:platformui="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0">
+
+    <Grid TextElement.Foreground="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}">
+        <Grid.Resources>
+            <!-- ======== Themed Button ======== -->
+            <Style TargetType="Button">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource {x:Static platformui:EnvironmentColors.CommandBarMouseOverBackgroundBeginBrushKey}}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource {x:Static platformui:EnvironmentColors.CommandBarMouseDownBackgroundBeginBrushKey}}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ======== Chromeless Button (tabs, inline actions) ======== -->
+            <Style x:Key="ChromelessButton" TargetType="Button">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource {x:Static platformui:EnvironmentColors.CommandBarMouseOverBackgroundBeginBrushKey}}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ======== Themed ComboBox (full template with dropdown arrow) ======== -->
+            <Style TargetType="ComboBox">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <ToggleButton x:Name="ToggleBtn"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                              Focusable="False" ClickMode="Press"
+                                              Background="{TemplateBinding Background}"
+                                              BorderBrush="{TemplateBinding BorderBrush}"
+                                              BorderThickness="{TemplateBinding BorderThickness}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="Bd"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    SnapsToDevicePixels="True">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="18" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Path Grid.Column="1" Data="M0,0 L4,4 L8,0"
+                                                          Stroke="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                                                          StrokeThickness="1.2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background"
+                                                            Value="{DynamicResource {x:Static platformui:EnvironmentColors.CommandBarMouseOverBackgroundBeginBrushKey}}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  Margin="6,3,24,3" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                  IsHitTestVisible="False" />
+                                <Popup x:Name="PART_Popup"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       Placement="Bottom" AllowsTransparency="True"
+                                       Focusable="False" PopupAnimation="Slide">
+                                    <Border MinWidth="{TemplateBinding ActualWidth}"
+                                            MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                            Background="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
+                                            BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                                            BorderThickness="1" SnapsToDevicePixels="True">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ======== Themed ComboBox dropdown items ======== -->
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource {x:Static platformui:EnvironmentColors.CommandBarMouseOverBackgroundBeginBrushKey}}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ======== Themed TextBox ======== -->
+            <Style TargetType="TextBox">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            </Style>
+
+            <!-- ======== Selectable read-only text ======== -->
+            <Style x:Key="SelectableText" TargetType="TextBox">
+                <Setter Property="Foreground" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="IsReadOnly" Value="True" />
+                <Setter Property="IsTabStop" Value="False" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="CaretBrush" Value="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            </Style>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Tab Bar -->
+        <Border Grid.Row="0" BorderThickness="0,0,0,1" BorderBrush="Gray" Opacity="0.4" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,4,8,0">
+            <Border BorderThickness="{Binding IssuesTabUnderline}" BorderBrush="#D4A030" Padding="0,0,0,4" Margin="0,0,6,0">
+                <Button Content="Package Issues" Command="{Binding SwitchToIssuesTabCommand}" Padding="14,6"
+                        FontWeight="{Binding IssuesTabFontWeight}" Opacity="{Binding IssuesTabOpacity}"
+                        Style="{StaticResource ChromelessButton}" />
+            </Border>
+            <Border BorderThickness="{Binding ConfigTabUnderline}" BorderBrush="#D4A030" Padding="0,0,0,4" Margin="0,0,6,0">
+                <Button Content="Configuration" Command="{Binding SwitchToConfigTabCommand}" Padding="14,6"
+                        FontWeight="{Binding ConfigTabFontWeight}" Opacity="{Binding ConfigTabOpacity}"
+                        Style="{StaticResource ChromelessButton}" />
+            </Border>
+            <Border BorderThickness="{Binding BackgroundTabUnderline}" BorderBrush="#D4A030" Padding="0,0,0,4" Margin="0,0,6,0">
+                <Button Content="Background" Command="{Binding SwitchToBackgroundTabCommand}" Padding="14,6"
+                        FontWeight="{Binding BackgroundTabFontWeight}" Opacity="{Binding BackgroundTabOpacity}"
+                        Style="{StaticResource ChromelessButton}" />
+            </Border>
+            <Border BorderThickness="{Binding FeedbackTabUnderline}" BorderBrush="#D4A030" Padding="0,0,0,4">
+                <Button Content="Feedback" Command="{Binding SwitchToFeedbackTabCommand}" Padding="14,6"
+                        FontWeight="{Binding FeedbackTabFontWeight}" Opacity="{Binding FeedbackTabOpacity}"
+                        Style="{StaticResource ChromelessButton}" />
+            </Border>
+        </StackPanel>
+
+        <!-- ==================== ISSUES TAB ==================== -->
+        <Grid Grid.Row="1" Visibility="{Binding IssuesTabVisibility}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Toolbar -->
+            <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="8,4,8,0">
+                <TextBlock Text="Project:" VerticalAlignment="Center" Margin="0,0,6,4" />
+                <ComboBox ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}"
+                          MinWidth="180" Margin="0,0,12,4" />
+                <TextBlock Text="Category:" VerticalAlignment="Center" Margin="0,0,6,4" />
+                <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                          MinWidth="110" Margin="0,0,12,4" />
+                <TextBlock Text="Filter:" VerticalAlignment="Center" Margin="0,0,6,4" />
+                <Grid MinWidth="140" Margin="0,0,12,4">
+                    <TextBox Text="{Binding PackageFilter}" Padding="4,3,20,3" />
+                    <Button Command="{Binding ClearFilterCommand}"
+                            Visibility="{Binding FilterClearVisibility}"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Background="Transparent" BorderThickness="0"
+                            Padding="4,0" Margin="0,0,2,0" Cursor="Hand"
+                            ToolTipService.ToolTip="Clear filter">
+                        <TextBlock Text="&#x2715;" FontSize="10" Opacity="0.6" />
+                    </Button>
+                </Grid>
+                <Button Content="{Binding AnalyseButtonLabel}" Command="{Binding AnalyseCommand}" IsEnabled="{Binding AnalyseEnabled}" Padding="10,3" Margin="0,0,4,4" />
+                <Button Content="Update Shown" Command="{Binding UpdateShownCommand}" IsEnabled="{Binding UpdateShownEnabled}" Padding="10,3" Margin="0,0,8,4" />
+                <CheckBox Content="Backup" IsChecked="{Binding CreateBackup}"
+                          VerticalAlignment="Center" Margin="0,0,0,4"
+                          Foreground="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                          ToolTipService.ToolTip="Create a timestamped backup of packages.config and .csproj before applying updates" />
+            </WrapPanel>
+
+            <!-- Status Bar -->
+            <Border Grid.Row="1"
+                    BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                    BorderThickness="1" CornerRadius="3"
+                    Margin="8,0,8,6" Padding="10,5"
+                    Background="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTabSelectedTabBrushKey}}">
+                <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.85" />
+            </Border>
+
+            <!-- Issues list -->
+            <ListView Grid.Row="2" ItemsSource="{Binding Issues}" SelectedItem="{Binding SelectedIssue}"
+                      Margin="8,0,8,0"
+                      Background="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
+                      Foreground="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                      BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Width="28" DisplayMemberBinding="{Binding StatusIcon}">
+                            <GridViewColumn.Header>
+                                <TextBlock Text="!" FontWeight="Bold" />
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="200" DisplayMemberBinding="{Binding PackageId}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Package" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Package" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorPackage, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="115" DisplayMemberBinding="{Binding CurrentVersion}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Current" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Current" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorCurrent, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="115" DisplayMemberBinding="{Binding SuggestedDisplay}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Suggested" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Suggested" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorSuggested, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="90" DisplayMemberBinding="{Binding CategoryLabel}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Category" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Category" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorCategory, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="82" DisplayMemberBinding="{Binding SeverityDisplay}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Severity" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Severity" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorSeverity, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="85" DisplayMemberBinding="{Binding SourceDisplay}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Source" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Source" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorSource, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="160" DisplayMemberBinding="{Binding ProjectName}">
+                            <GridViewColumn.Header>
+                                <Button Command="{Binding DataContext.SortCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="Project" Style="{StaticResource ChromelessButton}"
+                                        Cursor="Hand" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Project" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding DataContext.SortIndicatorProject, RelativeSource={RelativeSource AncestorType=ListView}}" FontSize="9" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                        <GridViewColumn Width="130" DisplayMemberBinding="{Binding FormatLabel}">
+                            <GridViewColumn.Header>
+                                <TextBlock Text="Package Manager Type" FontWeight="Bold" />
+                            </GridViewColumn.Header>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <!-- Detail panel -->
+            <Border Grid.Row="3" Margin="8,6,8,0" Padding="14,10" CornerRadius="3"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                    Background="Transparent" Opacity="0.95"
+                    Visibility="{Binding DetailPanelVisibility}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Text="{Binding SelectedIssue.PackageId}" FontWeight="Bold" FontSize="14"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text="  —  " Opacity="0.5" FontSize="14" />
+                        <TextBox Text="{Binding SelectedIssue.Source}" FontSize="14" Opacity="0.7"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text="  " FontSize="14" />
+                        <TextBox Text="{Binding SelectedIssue.ProjectFormat}" FontSize="11" Opacity="0.5"
+                                 Style="{StaticResource SelectableText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBox Text="{Binding SelectedIssue.CurrentVersion}" FontSize="12" FontFamily="Consolas"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text="  &#x2192;  " FontSize="12" />
+                        <TextBox Text="{Binding SelectedIssue.SuggestedVersion}" FontSize="12" FontFamily="Consolas" FontWeight="SemiBold"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text="  [" FontSize="12" Opacity="0.5" />
+                        <TextBox Text="{Binding SelectedIssue.CategoryLabel}" FontSize="12" Opacity="0.5"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text=" / " FontSize="12" Opacity="0.5" />
+                        <TextBox Text="{Binding SelectedIssue.TypeLabel}" FontSize="12" Opacity="0.5"
+                                 Style="{StaticResource SelectableText}" />
+                        <TextBlock Text="]" FontSize="12" Opacity="0.5" />
+                    </StackPanel>
+                    <TextBox Text="{Binding SelectedIssue.DiagnosticMessage}" TextWrapping="Wrap"
+                             Margin="0,6,0,0" FontSize="11" Opacity="0.7"
+                             Style="{StaticResource SelectableText}" />
+                    <!-- packages.config XML entry (only shown for pc packages) -->
+                    <TextBox Text="{Binding SelectedIssue.PackagesConfigEntry}"
+                             Visibility="{Binding PackagesConfigEntryVisibility}"
+                             Margin="0,6,0,0" FontSize="11" FontFamily="Consolas"
+                             Padding="6,4" Opacity="0.8"
+                             IsReadOnly="True"
+                             BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                             BorderThickness="1" />
+                    <Button Command="{Binding UpdateSelectedCommand}" Content="{Binding UpdateSelectedButtonLabel}"
+                            IsEnabled="{Binding UpdateSelectedEnabled}"
+                            Padding="10,4" Margin="0,10,0,0" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+
+        </Grid>
+
+        <!-- ==================== CONFIGURATION TAB ==================== -->
+        <ScrollViewer Grid.Row="1" Visibility="{Binding ConfigTabVisibility}" Margin="12,8,12,16"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="NuGet Sources" FontSize="18" FontWeight="Bold" Margin="0,0,0,10" />
+                <TextBlock Text="These sources are read from VS Package Manager Settings and nuget.config files. The extension queries all enabled sources for each package."
+                           TextWrapping="Wrap" FontSize="12.5" Opacity="0.85" Margin="0,0,0,12" />
+                <Border BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                        BorderThickness="1" CornerRadius="3" Padding="10,8" Background="Transparent">
+                    <TextBox Text="{Binding ConfigSourcesText}" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"
+                             BorderThickness="0" Background="Transparent" />
+                </Border>
+
+                <TextBlock Text="Config Files Used" FontSize="18" FontWeight="Bold" Margin="0,20,0,10" />
+                <Border BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                        BorderThickness="1" CornerRadius="3" Padding="10,8" Background="Transparent">
+                    <TextBox Text="{Binding ConfigFilesText}" IsReadOnly="True"
+                             FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"
+                             BorderThickness="0" Background="Transparent" />
+                </Border>
+
+                <Border Height="1" Opacity="0.15" Margin="0,20,0,16" Background="Gray" />
+
+                <TextBlock Text="Extension Settings" FontSize="18" FontWeight="Bold" Margin="0,0,0,10" />
+                <CheckBox IsChecked="{Binding CreateBackup}" Content="Create backup before updating packages"
+                          Foreground="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowTextBrushKey}}" Margin="0,0,0,6" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ==================== BACKGROUND TAB ==================== -->
+        <ScrollViewer Grid.Row="1" Visibility="{Binding BackgroundTabVisibility}" Margin="12,8,12,16"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="How This Extension Works" FontSize="18" FontWeight="Bold" Margin="0,0,0,12" />
+
+                <TextBlock Text="The packages.config Update Problem" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Opacity="0.85" Margin="0,0,0,14"
+                           Text="Visual Studio's built-in NuGet tooling has significant limitations with packages.config projects. 'dotnet list package --outdated' only works with PackageReference format. 'nuget.exe update' resolves the entire dependency chain for every package — if any dependency is a prerelease package, the entire update fails." />
+
+                <Border Height="1" Opacity="0.15" Margin="0,0,0,14" Background="Gray" />
+
+                <TextBlock Text="The XML-Edit Approach" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Opacity="0.85" Margin="0,0,0,14"
+                           Text="This extension bypasses nuget.exe entirely. It edits the version attributes directly in packages.config XML, updates the path tokens in the .csproj file (HintPaths, Import, Error guards), then triggers a NuGet restore. After restore, it reads the actual assembly version from the restored DLL and updates the Reference Include attribute." />
+
+                <Border Height="1" Opacity="0.15" Margin="0,0,0,14" Background="Gray" />
+
+                <TextBlock Text="Update Types" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,8" />
+
+                <!-- patch Card -->
+                <Border BorderBrush="#50B050" BorderThickness="0,0,0,3" CornerRadius="4" Margin="0,0,0,10" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="patch  —  Minor / Patch Update" FontSize="13" FontWeight="Bold" Foreground="#50B050" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.85"
+                                   Text="Same major version. Safe to auto-apply via 'Update Shown'." />
+                    </StackPanel>
+                </Border>
+
+                <!-- MAJOR Card -->
+                <Border BorderBrush="#D4A030" BorderThickness="0,0,0,3" CornerRadius="4" Margin="0,0,0,10" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="MAJOR  —  Major Version Bump" FontSize="13" FontWeight="Bold" Foreground="#D4A030" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.85"
+                                   Text="Different major version. May contain breaking changes. Excluded from batch updates — apply individually via detail panel after reviewing release notes." />
+                    </StackPanel>
+                </Border>
+
+                <!-- pre Card -->
+                <Border BorderBrush="#5090E0" BorderThickness="0,0,0,3" CornerRadius="4" Margin="0,0,0,10" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="pre  —  Prerelease Update" FontSize="13" FontWeight="Bold" Foreground="#5090E0" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.85"
+                                   Text="Current version is prerelease (contains '-'), and a newer prerelease is available. Common for date-based internal builds (e.g., 4.0.0-20260128-01). Safe to auto-apply." />
+                    </StackPanel>
+                </Border>
+
+                <!-- stable Card -->
+                <Border BorderBrush="#50B050" BorderThickness="0,0,0,3" CornerRadius="4" Margin="0,0,0,10" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="stable  —  Prerelease Promoted to Stable" FontSize="13" FontWeight="Bold" Foreground="#50B050" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.85"
+                                   Text="Current version is prerelease, but a stable release is now available (e.g., 4.0.0-rc1 → 4.0.0). Safe to auto-apply." />
+                    </StackPanel>
+                </Border>
+
+                <Border Height="1" Opacity="0.15" Margin="0,4,0,14" Background="Gray" />
+
+                <TextBlock Text="Edge Cases" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Opacity="0.85" Margin="0,0,0,6"
+                           Text="Some packages on nuget.org have bogus versions (e.g., System.ComponentModel.Composition shows 2010.x when the real version is 10.x). The extension detects and skips these. Version format differences (1.0 vs 1.0.0) are normalized before comparison." />
+
+                <Border Height="1" Opacity="0.15" Margin="0,8,0,14" Background="Gray" />
+
+                <TextBlock Text="packages.config vs PackageReference" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Opacity="0.85" Margin="0,0,0,10"
+                           Text="Solutions can contain both formats. The Fmt column shows 'pc' (packages.config) or 'pr' (PackageReference) so you know which format each issue comes from." />
+
+                <!-- VS NuGet Manager Bug Card -->
+                <Border BorderBrush="#D4A030" BorderThickness="0,0,0,3" CornerRadius="4" Margin="0,0,0,10" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="Known VS Issue: Prerelease in packages.config" FontSize="13" FontWeight="Bold" Foreground="#D4A030" Margin="0,0,0,6" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,6" Opacity="0.85"
+                                   Text="Visual Studio's NuGet Package Manager may show incorrect versions for prerelease packages in packages.config projects. It treats them as transitive dependencies and displays the stable version instead of the declared prerelease version." />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,6" Opacity="0.85"
+                                   Text="In packages.config, ALL packages are top-level (there is no concept of transitive dependencies). This extension reads the actual packages.config file and shows the correct declared version." />
+                        <TextBlock FontSize="11" Opacity="0.55" FontStyle="Italic"
+                                   Text="The extension flags these as 'Inconsistent' when a packages.config project uses a prerelease version while PackageReference projects use the stable version of the same package." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ==================== FEEDBACK TAB ==================== -->
+        <ScrollViewer Grid.Row="1" Visibility="{Binding FeedbackTabVisibility}" Margin="12,8,12,16"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Feedback &amp; Issues"
+                           FontSize="18" FontWeight="Bold" Margin="0,0,0,10" />
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Margin="0,0,0,16" Opacity="0.85"
+                           Text="Found a bug? Have a suggestion or feature request? We'd love to hear from you." />
+
+                <Border BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                        BorderThickness="1" CornerRadius="4" Margin="0,0,0,16" Padding="14,12" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="Report an Issue or Suggestion" FontSize="14" FontWeight="Bold"
+                                   Foreground="#5090E0" Margin="0,0,0,8" />
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,10" Opacity="0.85"
+                                   Text="Open an issue on GitHub to report bugs, request features, or ask questions about the extension." />
+                        <TextBox Text="https://github.com/ardimedia/visualstudio-nuget-fixer/issues"
+                                 Style="{StaticResource SelectableText}" FontSize="12" FontFamily="Consolas"
+                                 Foreground="#5090E0" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" Opacity="0.6"
+                           Text="Click the link above to open GitHub Issues in your browser." />
+
+                <Border Height="1" Opacity="0.15" Margin="0,0,0,16" Background="Gray" />
+
+                <TextBlock Text="Extension Info" FontSize="14" FontWeight="Bold" Margin="0,0,0,10" />
+                <Border BorderBrush="{DynamicResource {x:Static platformui:EnvironmentColors.ToolWindowBorderBrushKey}}"
+                        BorderThickness="1" CornerRadius="4" Padding="14,10" Background="Transparent">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Version:   " FontSize="12" FontFamily="Consolas" Width="100" Opacity="0.6" />
+                            <TextBlock Text="0.1.0" FontSize="12" FontFamily="Consolas" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Publisher: " FontSize="12" FontFamily="Consolas" Width="100" Opacity="0.6" />
+                            <TextBlock Text="Ardimedia" FontSize="12" FontFamily="Consolas" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="License:   " FontSize="12" FontFamily="Consolas" Width="100" Opacity="0.6" />
+                            <TextBlock Text="MIT" FontSize="12" FontFamily="Consolas" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+</DataTemplate>

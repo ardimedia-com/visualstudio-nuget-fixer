@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="NuGetPackageFixer.Tests/NuGetPackageFixer.Tests.csproj" />
+  <Project Path="NuGetPackageFixer/NuGetPackageFixer.csproj" />
+</Solution>

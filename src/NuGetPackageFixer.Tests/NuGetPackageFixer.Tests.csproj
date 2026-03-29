@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.1.0" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NuGetPackageFixer\NuGetPackageFixer.csproj">
+      <Private>true</Private>
+      <ExcludeAssets>build</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Suppress VS Extensibility analyzer that leaks from ProjectReference -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);VSEXT0004</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="TestData\packages.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

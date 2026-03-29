@@ -1,0 +1,24 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.vsix
+
+# VS files
+.vs/
+*.user
+*.suo
+*.cache
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude local
+.claude/*.local.md

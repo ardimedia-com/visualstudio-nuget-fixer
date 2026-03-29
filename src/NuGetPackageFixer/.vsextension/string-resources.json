@@ -1,0 +1,4 @@
+{
+  "NuGetPackageFixer.ScanCommand.DisplayName": "NuGet Package Fixer",
+  "NuGetPackageFixer.ScanCommand.TooltipText": "Scan all projects for outdated, vulnerable, or deprecated NuGet packages"
+}

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>NuGetPackageFixer</RootNamespace>
+
+    <!-- VSIX Extension properties -->
+    <IsVisualStudioExtension>true</IsVisualStudioExtension>
+    <VssdkCompatibleExtension>false</VssdkCompatibleExtension>
+    <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
+
+    <!-- Package / Marketplace metadata -->
+    <Version>0.1.0</Version>
+    <Authors>Ardimedia</Authors>
+    <Company>Ardimedia</Company>
+    <Product>NuGet Package Fixer</Product>
+    <Description>Scans packages.config and PackageReference projects for outdated, vulnerable, and deprecated NuGet packages. Updates via XML edit, bypassing nuget.exe dependency resolution issues.</Description>
+    <Copyright>Copyright (c) 2026 Ardimedia</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ardimedia/visualstudio-nuget-fixer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ardimedia/visualstudio-nuget-fixer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>visual-studio;vsix;nuget;packages-config;outdated;vulnerability</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.*" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.*" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
+    <Page Remove="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
+  </ItemGroup>
+
+</Project>
