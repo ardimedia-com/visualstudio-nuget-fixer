@@ -31,6 +31,11 @@
     <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
   </ItemGroup>
 
+  <!-- Shared VS extension infrastructure (use PackageReference once published to nuget.org) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\visualstudio-vs-extensions-common\src\Ardimedia.VsExtensions.Common\Ardimedia.VsExtensions.Common.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
     <Page Remove="ToolWindows\NuGetPackageFixerToolWindowControl.xaml" />
