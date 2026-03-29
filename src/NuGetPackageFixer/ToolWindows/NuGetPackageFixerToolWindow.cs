@@ -28,8 +28,7 @@ public class NuGetPackageFixerToolWindow : ToolWindow
     public override async Task<IRemoteUserControl> GetContentAsync(CancellationToken cancellationToken)
     {
         _viewModel = new NuGetPackageFixerToolWindowViewModel(this.Extensibility);
-
-        _ = _viewModel.RunInitialAnalysisAsync(cancellationToken);
+        _viewModel.Initialize();
 
         return new NuGetPackageFixerToolWindowControl(_viewModel);
     }
@@ -37,7 +36,7 @@ public class NuGetPackageFixerToolWindow : ToolWindow
     /// <inheritdoc />
     public override Task OnHideAsync(CancellationToken cancellationToken)
     {
-        _viewModel?.ClearData();
+        _viewModel?.Dispose();
         return base.OnHideAsync(cancellationToken);
     }
 }

@@ -230,10 +230,10 @@
                         <TextBlock Text="&#x2715;" FontSize="10" Opacity="0.6" />
                     </Button>
                 </Grid>
-                <Button Content="{Binding AnalyseButtonLabel}" Command="{Binding AnalyseCommand}"
+                <Button Content="{Binding AnalyseButtonLabel}" Command="{Binding StartAnalyseCommand}"
                         IsEnabled="{Binding AnalyseEnabled}" Visibility="{Binding AnalyseButtonVisibility}"
                         Padding="10,3" Margin="0,0,4,4" />
-                <Button Content="Cancel Analyse" Command="{Binding CancelCommand}"
+                <Button Content="Cancel Analyse" Command="{Binding CancelAnalyseCommand}"
                         Visibility="{Binding CancelButtonVisibility}"
                         Padding="10,3" Margin="0,0,4,4" />
                 <Button Content="Update Shown" Command="{Binding UpdateShownCommand}" IsEnabled="{Binding UpdateShownEnabled}" Padding="10,3" Margin="0,0,8,4" />

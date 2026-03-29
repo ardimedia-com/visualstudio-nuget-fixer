@@ -31,9 +31,8 @@
     <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
   </ItemGroup>
 
-  <!-- Shared VS extension infrastructure (use PackageReference once published to nuget.org) -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\visualstudio-vs-extensions-common\src\Ardimedia.VsExtensions.Common\Ardimedia.VsExtensions.Common.csproj" />
+    <PackageReference Include="Ardimedia.VsExtensions.Common" Version="1.0.*" />
   </ItemGroup>
 
   <ItemGroup>

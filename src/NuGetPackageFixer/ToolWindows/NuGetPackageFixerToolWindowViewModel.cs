@@ -2,8 +2,10 @@ namespace NuGetPackageFixer.ToolWindows;
 
 using System.Runtime.Serialization;
 
+using Ardimedia.VsExtensions.Common.Services;
+using Ardimedia.VsExtensions.Common.ViewModels;
+
 using Microsoft.VisualStudio.Extensibility;
-using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.UI;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 
@@ -12,17 +14,16 @@ using NuGetPackageFixer.Services;
 
 /// <summary>
 /// ViewModel for the NuGet Package Fixer tool window.
-/// Supports scanning, filtering, detail panel, and updating packages.
+/// Inherits solution monitoring, cancel/analyse, and scanning state from base class.
 /// </summary>
 [DataContract]
-public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject, IDisposable
+public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
 {
-    private readonly VisualStudioExtensibility _extensibility;
     private readonly NuGetSourceProvider _sourceProvider = new();
     private readonly PackageMetadataService _metadataService = new();
+    private readonly OutputChannelLogger _logger;
     private readonly List<PackageIssue> _allResults = [];
     private readonly Dictionary<string, string> _projectDirectories = new(StringComparer.OrdinalIgnoreCase);
-    private OutputChannel? _outputChannel;
 
     private string _statusText = "Ready. Click Analyse to scan.";
     private string _selectedProject = "All Projects";
@@ -31,15 +32,9 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     private string _sortColumn = "Severity";
     private bool _sortAscending = true;
     private PackageIssue? _selectedIssue;
-    private bool _isScanning;
     private bool _createBackup = true;
     private string _configSourcesText = string.Empty;
     private string _configFilesText = string.Empty;
-
-    // Solution monitor
-    private string _lastSolutionFingerprint = string.Empty;
-    private CancellationTokenSource? _monitorCts;
-    private CancellationTokenSource? _scanCts;
     private bool _hasSolution;
     private bool _hasCompletedScan;
 
@@ -50,10 +45,9 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     private bool _isFeedbackTabSelected;
 
     public NuGetPackageFixerToolWindowViewModel(VisualStudioExtensibility extensibility)
+        : base(extensibility)
     {
-        _extensibility = extensibility;
-        this.AnalyseCommand = new AsyncCommand(this.ExecuteStartAnalyseAsync);
-        this.CancelCommand = new AsyncCommand(this.ExecuteCancelAsync);
+        _logger = new OutputChannelLogger(extensibility, "NuGet Package Fixer");
         this.UpdateSelectedCommand = new AsyncCommand(this.ExecuteUpdateSelectedAsync);
         this.UpdateShownCommand = new AsyncCommand(this.ExecuteUpdateShownAsync);
         this.SwitchToIssuesTabCommand = new AsyncCommand((_, _) => { this.SelectTab(issues: true); return Task.CompletedTask; });
@@ -203,36 +197,9 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         && (_selectedIssue.SuggestedVersion is not "-"
             || _selectedIssue.Category == IssueCategory.Orphaned);
 
+    /// <summary>Button label for the Analyse button (base class handles visibility).</summary>
     [DataMember]
-    public bool IsScanning
-    {
-        get => _isScanning;
-        set
-        {
-            if (this.SetProperty(ref _isScanning, value))
-            {
-                this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
-                this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonVisibility));
-                this.RaiseNotifyPropertyChangedEvent(nameof(this.CancelButtonVisibility));
-                this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseEnabled));
-                this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
-            }
-        }
-    }
-
-    /// <summary>Button toggles between "Analyse", "Cancel Analyse", and "Re-Analyse".</summary>
-    [DataMember]
-    public string AnalyseButtonLabel => _isScanning
-        ? "Cancel Analyse"
-        : _hasCompletedScan ? "Re-Analyse" : "Analyse";
-
-    /// <summary>Analyse button is visible when NOT scanning.</summary>
-    [DataMember]
-    public string AnalyseButtonVisibility => _isScanning ? "Collapsed" : "Visible";
-
-    /// <summary>Cancel button is visible when scanning.</summary>
-    [DataMember]
-    public string CancelButtonVisibility => _isScanning ? "Visible" : "Collapsed";
+    public string AnalyseButtonLabel => _hasCompletedScan ? "Re-Analyse" : "Analyse";
 
     /// <summary>Analyse is enabled when a solution is loaded.</summary>
     [DataMember]
@@ -240,7 +207,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
     /// <summary>"Update Shown" is only enabled when not scanning and issues exist.</summary>
     [DataMember]
-    public bool UpdateShownEnabled => !_isScanning && _hasSolution && _allResults.Count > 0;
+    public bool UpdateShownEnabled => !this.IsScanning && _hasSolution && _allResults.Count > 0;
 
     [DataMember]
     public bool CreateBackup
@@ -290,12 +257,6 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     #region Commands
 
     [DataMember]
-    public IAsyncCommand AnalyseCommand { get; }
-
-    [DataMember]
-    public IAsyncCommand CancelCommand { get; }
-
-    [DataMember]
     public IAsyncCommand UpdateSelectedCommand { get; }
 
     [DataMember]
@@ -321,20 +282,15 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
     #endregion
 
-    #region Public Methods
+    #region Base Class Overrides
 
-    /// <summary>
-    /// Auto-triggered when the tool window is first shown.
-    /// </summary>
-    public async Task RunInitialAnalysisAsync(CancellationToken cancellationToken)
+    protected override async Task OnSolutionOpenedAsync(CancellationToken cancellationToken)
     {
         await this.ExecuteAnalyseAsync(null, cancellationToken);
-        this.StartSolutionMonitor();
     }
 
-    public void ClearData()
+    protected override void OnSolutionClosed()
     {
-        _scanCts?.Cancel();
         this.Issues.Clear();
         _allResults.Clear();
         _projectDirectories.Clear();
@@ -343,21 +299,24 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         _hasCompletedScan = false;
         this.StatusText = "Waiting for a solution to be opened...";
         this.SelectedIssue = null;
-        _lastSolutionFingerprint = string.Empty;
         this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseEnabled));
         this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
     }
 
-    public void Dispose()
+    protected override void OnIsScanningChanged()
     {
-        _scanCts?.Cancel();
-        _scanCts?.Dispose();
-        _monitorCts?.Cancel();
-        _monitorCts?.Dispose();
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseEnabled));
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
+    }
+
+    public override void Dispose()
+    {
         _sourceProvider.Dispose();
         _metadataService.Dispose();
-        _outputChannel?.Dispose();
-        GC.SuppressFinalize(this);
+        _logger.Dispose();
+        base.Dispose();
     }
 
     #endregion
@@ -365,39 +324,10 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     #region Private Methods
 
     /// <summary>
-    /// Toggles between starting analysis and cancelling a running scan.
-    /// </summary>
-    private Task ExecuteStartAnalyseAsync(object? parameter, CancellationToken cancellationToken)
-    {
-        if (_isScanning)
-        {
-            return Task.CompletedTask;
-        }
-
-        this.IsScanning = true;
-        this.StatusText = "Starting scan...";
-
-        _scanCts?.Dispose();
-        _scanCts = new CancellationTokenSource();
-        var token = _scanCts.Token;
-
-        _ = Task.Run(() => this.ExecuteAnalyseAsync(null, token));
-        return Task.CompletedTask;
-    }
-
-    private Task ExecuteCancelAsync(object? parameter, CancellationToken cancellationToken)
-    {
-        _scanCts?.Cancel();
-        this.StatusText = "Cancelling...";
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
     /// Main analysis: find packages.config files, parse them, query feeds for updates.
     /// </summary>
     private async Task ExecuteAnalyseAsync(object? parameter, CancellationToken cancellationToken)
     {
-        this.IsScanning = true;
         this.StatusText = "Scanning...";
 
         this.Issues.Clear();
@@ -411,7 +341,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
         try
         {
-            var projects = await _extensibility.Workspaces().QueryProjectsAsync(
+            var projects = await this.Extensibility.Workspaces().QueryProjectsAsync(
                 q => q.With(p => p.Name).With(p => p.Path),
                 cancellationToken).ConfigureAwait(false);
 
@@ -420,9 +350,9 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                 .Where(p => !string.IsNullOrEmpty(p.Path))
                 .ToList();
 
-            this.AppendLog("");
-            this.AppendLog("---- New analysis started ----");
-            this.AppendLog($"Found {projectList.Count} project(s) in solution.");
+            _logger.WriteLine("");
+            _logger.WriteLine("---- New analysis started ----");
+            _logger.WriteLine($"Found {projectList.Count} project(s) in solution.");
 
             if (projectList.Count == 0)
             {
@@ -440,14 +370,14 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             var packagesConfigProjects = scanResult.PackagesConfigProjects;
             var packageReferenceProjects = scanResult.PackageReferenceProjects;
 
-            this.AppendLog($"Found {packagesConfigProjects.Count} packages.config project(s), {packageReferenceProjects.Count} PackageReference project(s).");
+            _logger.WriteLine($"Found {packagesConfigProjects.Count} packages.config project(s), {packageReferenceProjects.Count} PackageReference project(s).");
 
             var allProjects = packagesConfigProjects.Concat(packageReferenceProjects).ToList();
 
             if (!scanResult.HasAnyPackages)
             {
                 this.StatusText = "No NuGet packages found in this solution.";
-                this.AppendLog("No packages.config or PackageReference projects found.");
+                _logger.WriteLine("No packages.config or PackageReference projects found.");
                 return;
             }
 
@@ -460,7 +390,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
             var solutionDir = Path.GetDirectoryName(allProjects[0].ProjectDirectory) ?? ".";
             var sources = _sourceProvider.GetConfiguredSources(solutionDir);
-            this.AppendLog($"Using {sources.Count} NuGet source(s): {string.Join(", ", sources.Select(s => s.Name))}");
+            _logger.WriteLine($"Using {sources.Count} NuGet source(s): {string.Join(", ", sources.Select(s => s.Name))}");
 
             // Populate Configuration tab
             this.PopulateConfigTab(solutionDir);
@@ -468,7 +398,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             var configFiles = _sourceProvider.GetConfigFilePaths(solutionDir);
             foreach (var cf in configFiles)
             {
-                this.AppendLog($"  Config: {cf}");
+                _logger.WriteLine($"  Config: {cf}");
             }
 
             // Build flat list of all packages from both formats
@@ -477,14 +407,14 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             foreach (var project in packagesConfigProjects)
             {
                 var packages = PackagesConfigParser.Parse(project.PackagesConfigPath);
-                this.AppendLog($"{project.ProjectName} [packages.config]: {packages.Count} package(s)");
+                _logger.WriteLine($"{project.ProjectName} [packages.config]: {packages.Count} package(s)");
                 allPackages.AddRange(packages.Select(pkg => (Project: project, Package: pkg)));
             }
 
             foreach (var project in packageReferenceProjects)
             {
                 var packages = PackageReferenceParser.Parse(project.ProjectFilePath);
-                this.AppendLog($"{project.ProjectName} [PackageReference]: {packages.Count} package(s)");
+                _logger.WriteLine($"{project.ProjectName} [PackageReference]: {packages.Count} package(s)");
                 allPackages.AddRange(packages.Select(pkg => (Project: project, Package: pkg)));
             }
 
@@ -495,7 +425,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                 .Select(g => (Id: g.First().Package.Id, IsPrerelease: g.First().Package.IsPrerelease))
                 .ToList();
 
-            this.AppendLog($"{allPackages.Count} total entries, {uniqueQueries.Count} unique feed queries.");
+            _logger.WriteLine($"{allPackages.Count} total entries, {uniqueQueries.Count} unique feed queries.");
 
             // Phase 1: Query feeds for unique package IDs in parallel
             int processedPackages = 0;
@@ -611,7 +541,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
                 if (orphaned.Count > 0)
                 {
-                    this.AppendLog($"  {project.ProjectName}: {orphaned.Count} orphaned reference(s)");
+                    _logger.WriteLine($"  {project.ProjectName}: {orphaned.Count} orphaned reference(s)");
                 }
             }
 
@@ -672,7 +602,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
                 if (inconsistencies.Count > 0)
                 {
-                    this.AppendLog($"{inconsistencies.Count} package(s) with version inconsistencies across projects");
+                    _logger.WriteLine($"{inconsistencies.Count} package(s) with version inconsistencies across projects");
                 }
             }
 
@@ -718,7 +648,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
                         _allResults.Add(issue);
                         this.Issues.Add(issue);
-                        this.AppendLog($"  Prerelease mismatch: {pkg.Id} {pkg.Version} (pc) vs {stableVersion} (pr)");
+                        _logger.WriteLine($"  Prerelease mismatch: {pkg.Id} {pkg.Version} (pc) vs {stableVersion} (pr)");
                     }
                 }
             }
@@ -820,11 +750,11 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
             if (totalVulnerable > 0)
             {
-                this.AppendLog($"{totalVulnerable} vulnerable package(s) found");
+                _logger.WriteLine($"{totalVulnerable} vulnerable package(s) found");
             }
             if (totalDeprecated > 0)
             {
-                this.AppendLog($"{totalDeprecated} deprecated package(s) found");
+                _logger.WriteLine($"{totalDeprecated} deprecated package(s) found");
             }
 
             // C7: Migration readiness assessment
@@ -868,7 +798,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                     this.Issues.Add(issue);
                 }
 
-                this.AppendLog($"  {project.ProjectName}: migration {assessment.ReadinessLabel} ({assessment.Summary})");
+                _logger.WriteLine($"  {project.ProjectName}: migration {assessment.ReadinessLabel} ({assessment.Summary})");
             }
 
             // Summary
@@ -882,8 +812,6 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             var summary = parts.Count > 0 ? string.Join(", ", parts) : "no issues";
             this.StatusText = $"Scan complete: {summary} across {allProjects.Count} project(s) ({packagesConfigProjects.Count} pc, {packageReferenceProjects.Count} pr).";
 
-            // Store fingerprint so monitor knows this solution was analyzed
-            _lastSolutionFingerprint = await this.GetSolutionFingerprintAsync(cancellationToken);
             _hasCompletedScan = true;
             this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
             this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
@@ -895,11 +823,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         catch (Exception ex)
         {
             this.StatusText = $"Error: {ex.Message}";
-            this.AppendLog($"ERROR: {ex}");
-        }
-        finally
-        {
-            this.IsScanning = false;
+            _logger.WriteLine($"ERROR: {ex}");
         }
     }
 
@@ -933,7 +857,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
             PackagesConfigPatcher.CreateBackup(issue.ProjectPath, timestamp);
-            this.AppendLog($"Backup created ({timestamp})");
+            _logger.WriteLine($"Backup created ({timestamp})");
         }
 
         int removed = OrphanedReferencePatcher.RemoveOrphanedReferences(
@@ -945,12 +869,12 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             issue.IsFixableByBatch = false;
             issue.DiagnosticMessage = $"Fixed: removed {removed} reference(s) from .csproj";
             this.StatusText = $"Removed {removed} orphaned reference(s) for {issue.PackageId}. Click Re-Analyse to refresh.";
-            this.AppendLog($"  Removed {removed} orphaned reference(s) for {issue.PackageId}");
+            _logger.WriteLine($"  Removed {removed} orphaned reference(s) for {issue.PackageId}");
         }
         else
         {
             this.StatusText = $"No references found to remove for {issue.PackageId}.";
-            this.AppendLog($"  No references found for {issue.PackageId} in .csproj");
+            _logger.WriteLine($"  No references found for {issue.PackageId} in .csproj");
         }
 
         // Force UI refresh: re-set SelectedIssue to trigger detail panel update
@@ -1002,7 +926,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
                 if (!File.Exists(packagesConfigPath))
                 {
-                    this.AppendLog($"WARNING: packages.config not found at {packagesConfigPath}");
+                    _logger.WriteLine($"WARNING: packages.config not found at {packagesConfigPath}");
                     continue;
                 }
 
@@ -1012,7 +936,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                     var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
                     PackagesConfigPatcher.CreateBackup(packagesConfigPath, timestamp);
                     PackagesConfigPatcher.CreateBackup(projectPath, timestamp);
-                    this.AppendLog($"Backup created ({timestamp})");
+                    _logger.WriteLine($"Backup created ({timestamp})");
                 }
 
                 // Phase 1: Edit packages.config + .csproj path tokens
@@ -1030,26 +954,26 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                     if (pcSuccess)
                     {
                         updated++;
-                        this.AppendLog($"  Updated: {issue.PackageId} {issue.CurrentVersion} -> {issue.SuggestedVersion}");
+                        _logger.WriteLine($"  Updated: {issue.PackageId} {issue.CurrentVersion} -> {issue.SuggestedVersion}");
                         if (csprojSuccess)
                         {
-                            this.AppendLog($"    .csproj path tokens updated");
+                            _logger.WriteLine($"    .csproj path tokens updated");
                         }
                     }
                     else
                     {
                         failed++;
-                        this.AppendLog($"  FAILED: {issue.PackageId} - not found in packages.config");
+                        _logger.WriteLine($"  FAILED: {issue.PackageId} - not found in packages.config");
                     }
                 }
 
                 // Phase 2: Trigger restore (build the project)
                 this.StatusText = "Restoring packages...";
-                this.AppendLog("Triggering NuGet restore...");
+                _logger.WriteLine("Triggering NuGet restore...");
 
                 try
                 {
-                    var buildProjects = await _extensibility.Workspaces().QueryProjectsAsync(
+                    var buildProjects = await this.Extensibility.Workspaces().QueryProjectsAsync(
                         q => q.Where(p => p.Path == projectPath).With(p => p.Name),
                         cancellationToken).ConfigureAwait(false);
 
@@ -1057,17 +981,17 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
                     if (buildProject is not null)
                     {
                         await buildProject.BuildAsync(cancellationToken).ConfigureAwait(false);
-                        this.AppendLog("Restore/build completed.");
+                        _logger.WriteLine("Restore/build completed.");
                     }
                     else
                     {
-                        this.AppendLog("WARNING: Could not find project for build. Run NuGet restore manually.");
+                        _logger.WriteLine("WARNING: Could not find project for build. Run NuGet restore manually.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog($"WARNING: Build/restore failed: {ex.Message}");
-                    this.AppendLog("Run NuGet restore manually: right-click solution > Restore NuGet Packages");
+                    _logger.WriteLine($"WARNING: Build/restore failed: {ex.Message}");
+                    _logger.WriteLine("Run NuGet restore manually: right-click solution > Restore NuGet Packages");
                 }
 
                 // Phase 3: Update assembly versions in <Reference Include> from restored DLLs
@@ -1079,7 +1003,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
                     if (asmUpdated > 0)
                     {
-                        this.AppendLog($"    {issue.PackageId}: assembly version updated in <Reference Include> ({asmUpdated} reference(s))");
+                        _logger.WriteLine($"    {issue.PackageId}: assembly version updated in <Reference Include> ({asmUpdated} reference(s))");
                     }
                 }
             }
@@ -1122,7 +1046,7 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         catch (Exception ex)
         {
             this.StatusText = $"Update error: {ex.Message}";
-            this.AppendLog($"ERROR: {ex}");
+            _logger.WriteLine($"ERROR: {ex}");
         }
         finally
         {
@@ -1207,131 +1131,6 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         }
 
         this.StatusText = $"Showing {this.Issues.Count} of {_allResults.Count} issue(s).";
-    }
-
-    private void AppendLog(string message)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                _outputChannel ??= await _extensibility.Views().Output
-                    .CreateOutputChannelAsync("NuGet Package Fixer", default);
-
-                await _outputChannel.Writer.WriteLineAsync(message);
-            }
-            catch
-            {
-                // Output channel not available -- silently ignore
-            }
-        });
-    }
-
-    /// <summary>
-    /// Background monitor that detects solution changes (open/close/switch)
-    /// and triggers re-analysis automatically.
-    /// Uses a two-pass debounce: waits for project count to stabilize twice
-    /// with a 5-second gap to ensure all projects are fully loaded.
-    /// </summary>
-    private void StartSolutionMonitor()
-    {
-        _monitorCts?.Cancel();
-        _monitorCts = new CancellationTokenSource();
-        var token = _monitorCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
-
-                    if (_isScanning)
-                    {
-                        continue;
-                    }
-
-                    var currentFingerprint = await this.GetSolutionFingerprintAsync(token).ConfigureAwait(false);
-
-                    // Solution was closed
-                    if (string.IsNullOrEmpty(currentFingerprint) &&
-                        !string.IsNullOrEmpty(_lastSolutionFingerprint))
-                    {
-                        this.ClearData();
-                        continue;
-                    }
-
-                    // Solution opened or changed -- debounce with two-pass stabilization
-                    if (!string.IsNullOrEmpty(currentFingerprint) &&
-                        currentFingerprint != _lastSolutionFingerprint)
-                    {
-                        this.StatusText = "Solution loading, waiting for all projects...";
-
-                        // Two-pass debounce: fingerprint must be stable for TWO consecutive checks
-                        // (5 seconds apart) to ensure all projects are fully loaded
-                        int stableCount = 0;
-                        string lastFingerprint = "";
-
-                        while (stableCount < 2 && !token.IsCancellationRequested)
-                        {
-                            await Task.Delay(TimeSpan.FromSeconds(5), token).ConfigureAwait(false);
-                            currentFingerprint = await this.GetSolutionFingerprintAsync(token).ConfigureAwait(false);
-
-                            if (string.IsNullOrEmpty(currentFingerprint))
-                            {
-                                break; // Solution was closed during loading
-                            }
-
-                            if (currentFingerprint == lastFingerprint)
-                            {
-                                stableCount++;
-                            }
-                            else
-                            {
-                                stableCount = 0;
-                                lastFingerprint = currentFingerprint;
-                                var projectCount = currentFingerprint.Split('|').Length;
-                                this.StatusText = $"Solution loading... {projectCount} project(s) found so far";
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(currentFingerprint) && stableCount >= 2)
-                        {
-                            await this.ExecuteAnalyseAsync(null, token).ConfigureAwait(false);
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-                catch
-                {
-                    // Monitor should never crash
-                }
-            }
-        }, token);
-    }
-
-    /// <summary>
-    /// Returns a fingerprint of the current solution (sorted project paths joined).
-    /// Returns empty if no solution is loaded.
-    /// </summary>
-    private async Task<string> GetSolutionFingerprintAsync(CancellationToken cancellationToken)
-    {
-        var projects = await _extensibility.Workspaces().QueryProjectsAsync(
-            q => q.With(p => p.Path),
-            cancellationToken).ConfigureAwait(false);
-
-        var paths = projects
-            .Select(p => p.Path ?? string.Empty)
-            .Where(p => !string.IsNullOrEmpty(p))
-            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (paths.Count == 0) return string.Empty;
-        return string.Join("|", paths);
     }
 
     private void SelectTab(bool issues = false, bool config = false, bool background = false, bool feedback = false)
