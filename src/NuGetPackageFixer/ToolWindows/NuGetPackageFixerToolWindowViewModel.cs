@@ -52,7 +52,8 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     public NuGetPackageFixerToolWindowViewModel(VisualStudioExtensibility extensibility)
     {
         _extensibility = extensibility;
-        this.AnalyseCommand = new AsyncCommand(this.ExecuteAnalyseOrCancelAsync);
+        this.AnalyseCommand = new AsyncCommand(this.ExecuteStartAnalyseAsync);
+        this.CancelCommand = new AsyncCommand(this.ExecuteCancelAsync);
         this.UpdateSelectedCommand = new AsyncCommand(this.ExecuteUpdateSelectedAsync);
         this.UpdateShownCommand = new AsyncCommand(this.ExecuteUpdateShownAsync);
         this.SwitchToIssuesTabCommand = new AsyncCommand((_, _) => { this.SelectTab(issues: true); return Task.CompletedTask; });
@@ -211,6 +212,8 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
             if (this.SetProperty(ref _isScanning, value))
             {
                 this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
+                this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonVisibility));
+                this.RaiseNotifyPropertyChangedEvent(nameof(this.CancelButtonVisibility));
                 this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseEnabled));
                 this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
             }
@@ -223,9 +226,17 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         ? "Cancel Analyse"
         : _hasCompletedScan ? "Re-Analyse" : "Analyse";
 
-    /// <summary>Analyse is enabled when scanning (to cancel) or when a solution is loaded.</summary>
+    /// <summary>Analyse button is visible when NOT scanning.</summary>
     [DataMember]
-    public bool AnalyseEnabled => _isScanning || _hasSolution;
+    public string AnalyseButtonVisibility => _isScanning ? "Collapsed" : "Visible";
+
+    /// <summary>Cancel button is visible when scanning.</summary>
+    [DataMember]
+    public string CancelButtonVisibility => _isScanning ? "Visible" : "Collapsed";
+
+    /// <summary>Analyse is enabled when a solution is loaded.</summary>
+    [DataMember]
+    public bool AnalyseEnabled => _hasSolution;
 
     /// <summary>"Update Shown" is only enabled when not scanning and issues exist.</summary>
     [DataMember]
@@ -280,6 +291,9 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
 
     [DataMember]
     public IAsyncCommand AnalyseCommand { get; }
+
+    [DataMember]
+    public IAsyncCommand CancelCommand { get; }
 
     [DataMember]
     public IAsyncCommand UpdateSelectedCommand { get; }
@@ -353,17 +367,13 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
     /// <summary>
     /// Toggles between starting analysis and cancelling a running scan.
     /// </summary>
-    private Task ExecuteAnalyseOrCancelAsync(object? parameter, CancellationToken cancellationToken)
+    private Task ExecuteStartAnalyseAsync(object? parameter, CancellationToken cancellationToken)
     {
         if (_isScanning)
         {
-            // Cancel running scan
-            _scanCts?.Cancel();
-            this.StatusText = "Cancelling...";
             return Task.CompletedTask;
         }
 
-        // Set scanning state BEFORE launching the task to avoid race condition
         this.IsScanning = true;
         this.StatusText = "Starting scan...";
 
@@ -371,8 +381,14 @@ public class NuGetPackageFixerToolWindowViewModel : NotifyPropertyChangedObject,
         _scanCts = new CancellationTokenSource();
         var token = _scanCts.Token;
 
-        // Fire and forget -- must not await, otherwise Cancel click is queued behind the scan
         _ = Task.Run(() => this.ExecuteAnalyseAsync(null, token));
+        return Task.CompletedTask;
+    }
+
+    private Task ExecuteCancelAsync(object? parameter, CancellationToken cancellationToken)
+    {
+        _scanCts?.Cancel();
+        this.StatusText = "Cancelling...";
         return Task.CompletedTask;
     }
 
