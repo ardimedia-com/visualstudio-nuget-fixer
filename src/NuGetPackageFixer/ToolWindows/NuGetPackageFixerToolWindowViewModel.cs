@@ -44,6 +44,10 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     private bool _isConfigTabSelected;
     private bool _isBackgroundTabSelected;
     private bool _isFeedbackTabSelected;
+    private string _feedbackTitle = "BUG: ";
+    private string _feedbackBody = string.Empty;
+    private string _feedbackType = "Bug";
+    private string _feedbackStatus = string.Empty;
 
     public NuGetPackageFixerToolWindowViewModel(VisualStudioExtensibility extensibility)
         : base(extensibility)
@@ -55,8 +59,11 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         this.SwitchToConfigTabCommand = new AsyncCommand((_, _) => { this.SelectTab(config: true); return Task.CompletedTask; });
         this.SwitchToBackgroundTabCommand = new AsyncCommand((_, _) => { this.SelectTab(background: true); return Task.CompletedTask; });
         this.SwitchToFeedbackTabCommand = new AsyncCommand((_, _) => { this.SelectTab(feedback: true); return Task.CompletedTask; });
+        this.SubmitFeedbackCommand = new AsyncCommand(this.ExecuteSubmitFeedbackAsync);
         this.ClearFilterCommand = new AsyncCommand((_, _) => { this.PackageFilter = string.Empty; return Task.CompletedTask; });
         this.SortCommand = new AsyncCommand(this.ExecuteSortAsync);
+
+        FeedbackBody = $"**Extension Info**: Version: {ExtensionVersion}\n\n";
     }
 
     #region Properties
@@ -257,6 +264,34 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     [DataMember] public string BackgroundTabOpacity => _isBackgroundTabSelected ? "1.0" : "0.6";
     [DataMember] public string FeedbackTabOpacity => _isFeedbackTabSelected ? "1.0" : "0.6";
 
+    [DataMember]
+    public string FeedbackTitle
+    {
+        get => _feedbackTitle;
+        set => SetProperty(ref _feedbackTitle, value);
+    }
+
+    [DataMember]
+    public string FeedbackBody
+    {
+        get => _feedbackBody;
+        set => SetProperty(ref _feedbackBody, value);
+    }
+
+    [DataMember]
+    public string FeedbackType
+    {
+        get => _feedbackType;
+        set => SetProperty(ref _feedbackType, value);
+    }
+
+    [DataMember]
+    public string FeedbackStatus
+    {
+        get => _feedbackStatus;
+        set => SetProperty(ref _feedbackStatus, value);
+    }
+
     #endregion
 
     #region Commands
@@ -271,6 +306,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     [DataMember] public IAsyncCommand SwitchToConfigTabCommand { get; }
     [DataMember] public IAsyncCommand SwitchToBackgroundTabCommand { get; }
     [DataMember] public IAsyncCommand SwitchToFeedbackTabCommand { get; }
+    [DataMember] public IAsyncCommand SubmitFeedbackCommand { get; }
     [DataMember] public IAsyncCommand ClearFilterCommand { get; }
     [DataMember] public IAsyncCommand SortCommand { get; }
 
@@ -1148,6 +1184,43 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         {
             this.RaiseNotifyPropertyChangedEvent(name);
         }
+    }
+
+    private Task ExecuteSubmitFeedbackAsync(object? parameter, CancellationToken cancellationToken)
+    {
+        if (parameter is "SetTypeBug" or "SetTypeFeature")
+        {
+            var oldPrefix = FeedbackType == "Bug" ? "BUG: " : "FEATURE: ";
+            var newType = parameter is "SetTypeBug" ? "Bug" : "Feature";
+            var newPrefix = newType == "Bug" ? "BUG: " : "FEATURE: ";
+            FeedbackType = newType;
+
+            if (FeedbackTitle.StartsWith(oldPrefix, StringComparison.Ordinal))
+                FeedbackTitle = newPrefix + FeedbackTitle[oldPrefix.Length..];
+            else if (!FeedbackTitle.StartsWith(newPrefix, StringComparison.Ordinal))
+                FeedbackTitle = newPrefix + FeedbackTitle;
+
+            return Task.CompletedTask;
+        }
+
+        if (string.IsNullOrWhiteSpace(FeedbackTitle) || FeedbackTitle.Trim() is "BUG:" or "FEATURE:")
+        {
+            FeedbackStatus = "Please enter a title.";
+            return Task.CompletedTask;
+        }
+
+        var label = FeedbackType == "Bug" ? "bug" : "enhancement";
+        var title = Uri.EscapeDataString(FeedbackTitle.Trim());
+        var body = Uri.EscapeDataString(FeedbackBody.Trim());
+        var url = $"https://github.com/ardimedia/visualstudio-nuget-fixer/issues/new?title={title}&body={body}&labels={label}";
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+
+        FeedbackStatus = "Opened in browser.";
+        var prefix = FeedbackType == "Bug" ? "BUG: " : "FEATURE: ";
+        FeedbackTitle = prefix;
+        FeedbackBody = $"**Extension Info**: Version: {ExtensionVersion}\n\n";
+        return Task.CompletedTask;
     }
 
     private void PopulateConfigTab(string solutionDir)

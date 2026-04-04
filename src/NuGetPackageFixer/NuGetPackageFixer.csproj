@@ -9,6 +9,7 @@
     <!-- VSIX Extension properties -->
     <IsVisualStudioExtension>true</IsVisualStudioExtension>
     <VssdkCompatibleExtension>false</VssdkCompatibleExtension>
+    <DeployExtension Condition="'$(Configuration)' == 'Debug' and '$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
     <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
 
     <!-- Package / Marketplace metadata -->
