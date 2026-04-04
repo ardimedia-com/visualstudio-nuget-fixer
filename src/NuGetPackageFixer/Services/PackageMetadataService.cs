@@ -13,7 +13,7 @@ using NuGet.Versioning;
 /// </summary>
 public class PackageMetadataService : IDisposable
 {
-    private readonly SourceCacheContext _cache = new();
+    private SourceCacheContext _cache = new();
     private readonly ILogger _logger = NullLogger.Instance;
     private readonly SemaphoreSlim _throttle;
 
@@ -121,6 +121,15 @@ public class PackageMetadataService : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Resets the NuGet HTTP cache so the next query fetches fresh data from feeds.
+    /// </summary>
+    public void RefreshCache()
+    {
+        _cache.Dispose();
+        _cache = new SourceCacheContext();
     }
 
     public void Dispose()

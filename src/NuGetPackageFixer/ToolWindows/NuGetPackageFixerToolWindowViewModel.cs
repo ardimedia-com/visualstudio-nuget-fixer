@@ -378,6 +378,10 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     {
         this.StatusText = "Scanning...";
 
+        // Reset NuGet caches to ensure fresh data from feeds
+        _sourceProvider.RefreshCache();
+        _metadataService.RefreshCache();
+
         this.Issues.Clear();
         _allResults.Clear();
         _projectDirectories.Clear();

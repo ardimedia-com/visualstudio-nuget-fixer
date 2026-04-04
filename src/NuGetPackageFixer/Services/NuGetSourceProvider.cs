@@ -12,7 +12,7 @@ using NuGet.Versioning;
 /// </summary>
 public class NuGetSourceProvider : IDisposable
 {
-    private readonly SourceCacheContext _cache = new();
+    private SourceCacheContext _cache = new();
     private readonly ILogger _logger = NullLogger.Instance;
     private readonly SemaphoreSlim _throttle;
     /// <summary>
@@ -244,6 +244,15 @@ public class NuGetSourceProvider : IDisposable
         ];
 
         return searchPaths.FirstOrDefault(File.Exists);
+    }
+
+    /// <summary>
+    /// Resets the NuGet HTTP cache so the next analysis fetches fresh data from feeds.
+    /// </summary>
+    public void RefreshCache()
+    {
+        _cache.Dispose();
+        _cache = new SourceCacheContext();
     }
 
     public void Dispose()
