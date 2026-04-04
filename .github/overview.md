@@ -1,11 +1,5 @@
 # NuGet Package Fixer
 
-[![Build](https://github.com/ardimedia-com/visualstudio-nuget-fixer/actions/workflows/build.yml/badge.svg)](https://github.com/ardimedia-com/visualstudio-nuget-fixer/actions/workflows/build.yml)
-[![Release](https://github.com/ardimedia-com/visualstudio-nuget-fixer/actions/workflows/release.yml/badge.svg)](https://github.com/ardimedia-com/visualstudio-nuget-fixer/actions/workflows/release.yml)
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/Ardimedia.NuGetPackageFixer.svg)](https://marketplace.visualstudio.com/items?itemName=Ardimedia.NuGetPackageFixer)
-[![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/Ardimedia.NuGetPackageFixer.svg)](https://marketplace.visualstudio.com/items?itemName=Ardimedia.NuGetPackageFixer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
 A Visual Studio 2022/2026 extension that scans your solution for NuGet package issues -- outdated, vulnerable, deprecated, orphaned, and inconsistent packages -- across both `packages.config` and PackageReference projects.
 
 > **Note:** This extension is not yet fully implemented. If you are interested, please [open an issue](https://github.com/ardimedia/visualstudio-nuget-fixer/issues) to let us know.
