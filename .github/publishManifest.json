@@ -4,7 +4,7 @@
   "identity": {
     "internalName": "NuGetPackageFixer"
   },
-  "overview": "README.md",
+  "overview": "overview.md",
   "pricing": "Free",
   "publisher": "Ardimedia",
   "repo": "https://github.com/ardimedia-com/visualstudio-nuget-fixer"
