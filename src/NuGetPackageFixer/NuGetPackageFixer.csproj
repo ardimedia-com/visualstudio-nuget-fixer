@@ -6,14 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>NuGetPackageFixer</RootNamespace>
 
-    <!-- VSIX Extension properties -->
-    <IsVisualStudioExtension>true</IsVisualStudioExtension>
-    <VssdkCompatibleExtension>false</VssdkCompatibleExtension>
-    <DeployExtension Condition="'$(Configuration)' == 'Debug' and '$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
     <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
 
     <!-- Package / Marketplace metadata -->
-    <Version>0.1.2</Version>
+    <Version>0.1.3</Version>
     <Authors>Ardimedia</Authors>
     <Company>Ardimedia</Company>
     <Product>NuGet Package Fixer</Product>
@@ -27,8 +23,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.*" />
-    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.*" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.*" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.*" PrivateAssets="all" />
     <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
   </ItemGroup>
 
