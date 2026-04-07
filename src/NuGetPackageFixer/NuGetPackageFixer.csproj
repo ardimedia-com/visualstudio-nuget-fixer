@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
 
     <!-- Package / Marketplace metadata -->
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <Authors>Ardimedia</Authors>
     <Company>Ardimedia</Company>
     <Product>NuGet Package Fixer</Product>

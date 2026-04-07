@@ -2,6 +2,14 @@
 
 All notable changes to the NuGet Package Fixer extension will be documented in this file.
 
+## [0.1.8] - 2026-04-07
+
+### Fixed
+
+- **Dark theme readability**: Column headers now use VS theme colors for Dark, Blue, and High Contrast themes
+- **Status text**: Clarified "2 pc, 17 pr" to "2 packages.config, 17 PackageReference"
+- **Button label**: Renamed "Re-Analyse" to "Analyse"
+
 ## [0.1.7] - 2026-04-07
 
 ### Added

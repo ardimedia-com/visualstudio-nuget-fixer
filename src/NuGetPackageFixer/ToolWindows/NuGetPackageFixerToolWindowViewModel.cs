@@ -219,7 +219,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
 
     /// <summary>Button label for the Analyse button (base class handles visibility).</summary>
     [DataMember]
-    public string AnalyseButtonLabel => _hasCompletedScan ? "Re-Analyse" : "Analyse";
+    public string AnalyseButtonLabel => "Analyse";
 
     /// <summary>Analyse is enabled when a solution is loaded.</summary>
     [DataMember]
@@ -895,7 +895,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             if (totalInconsistent > 0) parts.Add($"{totalInconsistent} inconsistent");
             if (totalMigrationIssues > 0) parts.Add($"{totalMigrationIssues} migration");
             var summary = parts.Count > 0 ? string.Join(", ", parts) : "no issues";
-            this.StatusText = $"Scan complete: {summary} across {allProjects.Count} project(s) ({packagesConfigProjects.Count} pc, {packageReferenceProjects.Count} pr).";
+            this.StatusText = $"Scan complete: {summary} across {allProjects.Count} project(s) ({packagesConfigProjects.Count} packages.config, {packageReferenceProjects.Count} PackageReference).";
 
             _hasCompletedScan = true;
             this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
@@ -958,7 +958,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         if (removed > 0)
         {
             issue.MarkAsFixed($"Fixed: removed {removed} reference(s) from .csproj");
-            this.StatusText = $"Removed {removed} orphaned reference(s) for {issue.PackageId}. Click Re-Analyse to refresh.";
+            this.StatusText = $"Removed {removed} orphaned reference(s) for {issue.PackageId}. Click Analyse to refresh.";
             _logger.WriteLine($"  Removed {removed} orphaned reference(s) for {issue.PackageId}");
         }
         else
@@ -1001,7 +1001,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             File.Delete(packagesConfigPath);
 
             issue.MarkAsFixed("Fixed: packages.config removed");
-            this.StatusText = $"Removed obsolete packages.config from {issue.ProjectName}. Click Re-Analyse to refresh.";
+            this.StatusText = $"Removed obsolete packages.config from {issue.ProjectName}. Click Analyse to refresh.";
             _logger.WriteLine($"  Deleted obsolete packages.config from {issue.ProjectName}");
         }
         catch (Exception ex)
@@ -1137,7 +1137,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 }
             }
 
-            this.StatusText = $"Update complete. {updated} updated, {failed} failed. Click Re-Analyse to refresh.";
+            this.StatusText = $"Update complete. {updated} updated, {failed} failed. Click Analyse to refresh.";
 
             // Mark successfully updated issues as fixed (no re-scan needed)
             foreach (var issue in issuesToFix)
