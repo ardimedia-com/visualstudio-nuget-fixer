@@ -8,7 +8,7 @@
 
 A Visual Studio 2022/2026 extension that scans your solution for NuGet package issues -- outdated, vulnerable, deprecated, orphaned, and inconsistent packages -- across both `packages.config` and PackageReference projects.
 
-> **Note:** This extension is not yet fully implemented. If you are interested, please [open an issue](https://github.com/ardimedia/visualstudio-nuget-fixer/issues) to let us know.
+> **Note:** This extension is not yet fully implemented. If you are interested, please [open an issue](https://github.com/ardimedia-com/visualstudio-nuget-fixer/issues) to let us know.
 
 ## The Problem
 
@@ -69,6 +69,7 @@ This extension addresses all of these in a single tool window.
 | **Orphaned** | `.csproj` references package not in `packages.config` | Yes (remove from .csproj) |
 | **Inconsistent** | Same package at different versions across projects | Yes (consolidate) |
 | **MigrationReady** | Assessment of `packages.config` to PackageReference migration blockers | Detection only |
+| **Obsolete packages.config** | `packages.config` in SDK-style projects (.NET 5+) — file is ignored by the SDK | Detection only |
 
 ## How It Works
 

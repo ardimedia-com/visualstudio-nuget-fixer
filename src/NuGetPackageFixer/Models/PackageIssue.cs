@@ -66,6 +66,7 @@ public class PackageIssue
         IssueCategory.Inconsistent => "Inconsistent",
         IssueCategory.Orphaned => "Orphaned",
         IssueCategory.Unused => "Unused",
+        IssueCategory.ObsoletePackagesConfig => "Obsolete packages.config",
         _ => this.Category.ToString()
     };
 
@@ -104,7 +105,8 @@ public enum IssueCategory
     Unused,
     MigrationReady,
     CpmCandidate,
-    Orphaned
+    Orphaned,
+    ObsoletePackagesConfig
 }
 
 public enum IssueSeverity

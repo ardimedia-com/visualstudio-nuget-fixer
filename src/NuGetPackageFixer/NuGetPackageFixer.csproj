@@ -9,15 +9,15 @@
     <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
 
     <!-- Package / Marketplace metadata -->
-    <Version>0.1.4</Version>
+    <Version>0.1.6</Version>
     <Authors>Ardimedia</Authors>
     <Company>Ardimedia</Company>
     <Product>NuGet Package Fixer</Product>
     <Description>Scans packages.config and PackageReference projects for outdated, vulnerable, and deprecated NuGet packages. Updates via XML edit, bypassing nuget.exe dependency resolution issues.</Description>
     <Copyright>Copyright (c) 2026 Ardimedia</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ardimedia/visualstudio-nuget-fixer</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ardimedia/visualstudio-nuget-fixer</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ardimedia-com/visualstudio-nuget-fixer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ardimedia-com/visualstudio-nuget-fixer</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>visual-studio;vsix;nuget;packages-config;outdated;vulnerability</PackageTags>
   </PropertyGroup>

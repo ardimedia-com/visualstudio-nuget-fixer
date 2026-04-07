@@ -63,7 +63,7 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         this.ClearFilterCommand = new AsyncCommand((_, _) => { this.PackageFilter = string.Empty; return Task.CompletedTask; });
         this.SortCommand = new AsyncCommand(this.ExecuteSortAsync);
 
-        FeedbackBody = $"**Extension Info**: Version: {ExtensionVersion}\n\n";
+        FeedbackBody = $"**Extension Info**: NuGet Package Fixer, Version: {ExtensionVersion}\n\n";
     }
 
     #region Properties
@@ -422,7 +422,32 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             var packagesConfigProjects = scanResult.PackagesConfigProjects;
             var packageReferenceProjects = scanResult.PackageReferenceProjects;
 
-            _logger.WriteLine($"Found {packagesConfigProjects.Count} packages.config project(s), {packageReferenceProjects.Count} PackageReference project(s).");
+            _logger.WriteLine($"Found {packagesConfigProjects.Count} packages.config project(s), {packageReferenceProjects.Count} PackageReference project(s), {scanResult.ObsoletePackagesConfigProjects.Count} obsolete packages.config project(s).");
+
+            // Flag obsolete packages.config files in SDK-style projects
+            foreach (var project in scanResult.ObsoletePackagesConfigProjects)
+            {
+                var issue = new PackageIssueViewModel(new PackageIssue
+                {
+                    ProjectName = project.ProjectName,
+                    ProjectPath = project.ProjectFilePath,
+                    PackageId = "(packages.config)",
+                    CurrentVersion = "",
+                    SuggestedVersion = "Remove file",
+                    Source = "",
+                    Category = IssueCategory.ObsoletePackagesConfig,
+                    Severity = IssueSeverity.Warning,
+                    IsFixableByBatch = false,
+                    ProjectFormat = "packages.config",
+                    DiagnosticMessage = $"packages.config is obsolete in this SDK-style project. "
+                        + "The .NET SDK uses PackageReference in the .csproj. "
+                        + $"File: {project.PackagesConfigPath}",
+                });
+
+                _allResults.Add(issue);
+                this.Issues.Add(issue);
+                _logger.WriteLine($"  {project.ProjectName}: obsolete packages.config detected");
+            }
 
             var allProjects = packagesConfigProjects.Concat(packageReferenceProjects).ToList();
 
@@ -1216,14 +1241,14 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         var label = FeedbackType == "Bug" ? "bug" : "enhancement";
         var title = Uri.EscapeDataString(FeedbackTitle.Trim());
         var body = Uri.EscapeDataString(FeedbackBody.Trim());
-        var url = $"https://github.com/ardimedia/visualstudio-nuget-fixer/issues/new?title={title}&body={body}&labels={label}";
+        var url = $"https://github.com/ardimedia-com/visualstudio-nuget-fixer/issues/new?title={title}&body={body}&labels={label}";
 
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
 
         FeedbackStatus = "Opened in browser.";
         var prefix = FeedbackType == "Bug" ? "BUG: " : "FEATURE: ";
         FeedbackTitle = prefix;
-        FeedbackBody = $"**Extension Info**: Version: {ExtensionVersion}\n\n";
+        FeedbackBody = $"**Extension Info**: NuGet Package Fixer, Version: {ExtensionVersion}\n\n";
         return Task.CompletedTask;
     }
 

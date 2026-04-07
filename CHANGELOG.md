@@ -2,6 +2,18 @@
 
 All notable changes to the NuGet Package Fixer extension will be documented in this file.
 
+## [0.1.6] - 2026-04-07
+
+### Added
+
+- **Obsolete packages.config detection**: Flags `packages.config` files in SDK-style projects targeting .NET 5+ as obsolete (can be safely deleted)
+- **Multi-target awareness**: Only flags `packages.config` as obsolete when ALL targets are modern .NET — keeps it if any .NET Framework target exists
+
+### Fixed
+
+- **GitHub URLs**: Corrected all URLs from `ardimedia/` to `ardimedia-com/`
+- **Extension name in feedback**: Feedback body now includes "NuGet Package Fixer" in Extension Info
+
 ## [0.1.4] - 2026-04-06
 
 ### Fixed
