@@ -2,11 +2,12 @@
 
 All notable changes to the NuGet Package Fixer extension will be documented in this file.
 
-## [0.1.6] - 2026-04-07
+## [0.1.7] - 2026-04-07
 
 ### Added
 
-- **Obsolete packages.config detection**: Flags `packages.config` files in SDK-style projects targeting .NET 5+ as obsolete (can be safely deleted)
+- **Obsolete packages.config detection**: Flags `packages.config` files in SDK-style projects targeting .NET 5+ as obsolete
+- **Remove packages.config**: "Remove file: packages.config" button deletes obsolete files (with backup if enabled)
 - **Multi-target awareness**: Only flags `packages.config` as obsolete when ALL targets are modern .NET — keeps it if any .NET Framework target exists
 
 ### Fixed

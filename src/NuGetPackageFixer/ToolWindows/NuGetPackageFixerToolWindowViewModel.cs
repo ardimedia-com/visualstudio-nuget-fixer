@@ -186,6 +186,12 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 return "Remove from .csproj";
             }
 
+            // Obsolete packages.config → delete file
+            if (_selectedIssue.Category == IssueCategory.ObsoletePackagesConfig)
+            {
+                return "Remove file: packages.config";
+            }
+
             // Not fixable
             if (_selectedIssue.SuggestedVersion == "-" || _selectedIssue.ProjectFormat != "packages.config")
             {
@@ -201,9 +207,11 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     public bool UpdateSelectedEnabled =>
         _selectedIssue is not null
         && !_selectedIssue.IsFixed
-        && _selectedIssue.ProjectFormat == "packages.config"
+        && (_selectedIssue.ProjectFormat == "packages.config"
+            || _selectedIssue.ProjectFormat == "packages.config (obsolete)")
         && (_selectedIssue.SuggestedVersion is not "-"
-            || _selectedIssue.Category == IssueCategory.Orphaned);
+            || _selectedIssue.Category == IssueCategory.Orphaned
+            || _selectedIssue.Category == IssueCategory.ObsoletePackagesConfig);
 
     /// <summary>Extension version from the assembly.</summary>
     [DataMember]
@@ -915,10 +923,17 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             return;
         }
 
-        // Orphaned: remove references from .csproj (different fix path)
+        // Orphaned: remove references from .csproj
         if (_selectedIssue.Category == IssueCategory.Orphaned)
         {
             await this.RemoveOrphanedReferenceAsync(_selectedIssue);
+            return;
+        }
+
+        // Obsolete packages.config: delete the file
+        if (_selectedIssue.Category == IssueCategory.ObsoletePackagesConfig)
+        {
+            this.RemoveObsoletePackagesConfig(_selectedIssue);
             return;
         }
 
@@ -956,6 +971,47 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateSelectedButtonLabel));
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Deletes an obsolete packages.config file from an SDK-style project.
+    /// </summary>
+    private void RemoveObsoletePackagesConfig(PackageIssueViewModel issue)
+    {
+        var packagesConfigPath = Path.Combine(
+            Path.GetDirectoryName(issue.ProjectPath) ?? "",
+            "packages.config");
+
+        if (!File.Exists(packagesConfigPath))
+        {
+            this.StatusText = "packages.config not found.";
+            return;
+        }
+
+        try
+        {
+            if (this.CreateBackup)
+            {
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+                var backupPath = packagesConfigPath + $".{timestamp}.bak";
+                File.Copy(packagesConfigPath, backupPath);
+                _logger.WriteLine($"Backup created: {backupPath}");
+            }
+
+            File.Delete(packagesConfigPath);
+
+            issue.MarkAsFixed("Fixed: packages.config removed");
+            this.StatusText = $"Removed obsolete packages.config from {issue.ProjectName}. Click Re-Analyse to refresh.";
+            _logger.WriteLine($"  Deleted obsolete packages.config from {issue.ProjectName}");
+        }
+        catch (Exception ex)
+        {
+            this.StatusText = $"Failed to delete packages.config: {ex.Message}";
+            _logger.WriteLine($"  ERROR deleting packages.config: {ex.Message}");
+        }
+
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateSelectedEnabled));
+        this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateSelectedButtonLabel));
     }
 
     /// <summary>
