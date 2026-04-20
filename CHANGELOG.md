@@ -2,11 +2,23 @@
 
 All notable changes to the NuGet Package Fixer extension will be documented in this file.
 
-## [0.1.9] - 2026-04-07
+## [0.1.10] - 2026-04-20
+
+### Added
+
+- **Limited PackageReference auto-fix**: Outdated PackageReference packages can now be updated automatically when safe to do so
+  - Supported: `Version="x.y.z"` (attribute form) and `<Version>x.y.z</Version>` (child element form)
+  - Skipped with clear reasons: Central Package Management (CPM), conditional references (`Condition` on element or `ItemGroup`), floating versions (`*`), and `VersionOverride` attribute/element
+  - CPM detection: checks for `<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>` in `.csproj` (explicit `false` is honored as opt-out) or `Directory.Packages.props` anywhere from project directory up to drive root
+  - Update flow: backs up `.csproj`, updates version in place, triggers NuGet restore via VS build system
+  - No assembly-version sync for PackageReference (not applicable)
+  - MAJOR updates still require individual action via detail panel (same as `packages.config`)
+  - "Update Shown" batch-fix now includes fixable PackageReference items (non-MAJOR, non-CPM, non-conditional, non-floating, non-VersionOverride)
+  - Detail panel shows specific skip reason for each unsupported case
 
 ### Fixed
 
-- **Dark theme readability**: Column headers and selected item now use VS theme colors for Dark, Blue, and High Contrast themes
+- **Dark theme readability**: Column headers (including hover/pressed states) and selected item now use VS theme colors for Dark, Blue, and High Contrast themes
 - **Status text**: Clarified "2 pc, 17 pr" to "2 packages.config, 17 PackageReference"
 - **Button label**: Renamed "Re-Analyse" to "Analyse"
 

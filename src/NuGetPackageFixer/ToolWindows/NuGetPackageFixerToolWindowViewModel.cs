@@ -1,6 +1,7 @@
 namespace NuGetPackageFixer.ToolWindows;
 
 using System.Runtime.Serialization;
+using System.Xml.Linq;
 
 using Ardimedia.VsExtensions.Common.Services;
 using Ardimedia.VsExtensions.Common.ViewModels;
@@ -37,7 +38,6 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     private string _configSourcesText = string.Empty;
     private string _configFilesText = string.Empty;
     private bool _hasSolution;
-    private bool _hasCompletedScan;
 
     // Tab state
     private bool _isIssuesTabSelected = true;
@@ -193,7 +193,18 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             }
 
             // Not fixable
-            if (_selectedIssue.SuggestedVersion == "-" || _selectedIssue.ProjectFormat != "packages.config")
+            if (_selectedIssue.SuggestedVersion == "-")
+            {
+                return "No auto-fix available";
+            }
+
+            // Structural skips (CPM, conditional, floating, VersionOverride) block single-item fix
+            if (IsStructurallySkipped(_selectedIssue.SkipReason))
+            {
+                return "No auto-fix available";
+            }
+
+            if (_selectedIssue.ProjectFormat != "packages.config" && _selectedIssue.ProjectFormat != "PackageReference")
             {
                 return "No auto-fix available";
             }
@@ -202,16 +213,53 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         }
     }
 
+    /// <summary>
+    /// True if the skip reason blocks both batch and single-item fix
+    /// (CPM, conditional, floating, VersionOverride). MAJOR is not considered structural —
+    /// it's excluded from batch but single-item fix is still allowed.
+    /// </summary>
+    private static bool IsStructurallySkipped(PackageSkipReason reason) => reason
+        is PackageSkipReason.Cpm
+        or PackageSkipReason.Conditional
+        or PackageSkipReason.Floating
+        or PackageSkipReason.VersionOverride;
+
     /// <summary>Update button is only enabled for fixable issues.</summary>
     [DataMember]
-    public bool UpdateSelectedEnabled =>
-        _selectedIssue is not null
-        && !_selectedIssue.IsFixed
-        && (_selectedIssue.ProjectFormat == "packages.config"
-            || _selectedIssue.ProjectFormat == "packages.config (obsolete)")
-        && (_selectedIssue.SuggestedVersion is not "-"
-            || _selectedIssue.Category == IssueCategory.Orphaned
-            || _selectedIssue.Category == IssueCategory.ObsoletePackagesConfig);
+    public bool UpdateSelectedEnabled
+    {
+        get
+        {
+            if (_selectedIssue is null || _selectedIssue.IsFixed)
+            {
+                return false;
+            }
+
+            // Special categories handled separately
+            if (_selectedIssue.Category == IssueCategory.Orphaned
+                || _selectedIssue.Category == IssueCategory.ObsoletePackagesConfig)
+            {
+                return true;
+            }
+
+            // Must have a valid suggested version
+            if (_selectedIssue.SuggestedVersion == "-")
+            {
+                return false;
+            }
+
+            // Structural skips block single-item fix; MAJOR is still allowed (single-item, not batch)
+            if (IsStructurallySkipped(_selectedIssue.SkipReason))
+            {
+                return false;
+            }
+
+            // Both packages.config variants and PackageReference are fixable single-item
+            return _selectedIssue.ProjectFormat is "packages.config"
+                or "packages.config (obsolete)"
+                or "PackageReference";
+        }
+    }
 
     /// <summary>Extension version from the assembly.</summary>
     [DataMember]
@@ -345,7 +393,6 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         _projectDirectories.Clear();
         this.Projects.Clear();
         _hasSolution = false;
-        _hasCompletedScan = false;
         this.StatusText = "Waiting for a solution to be opened...";
         this.SelectedIssue = null;
         this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
@@ -520,6 +567,8 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 StringComparer.OrdinalIgnoreCase);
             var contentCache = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(
                 StringComparer.OrdinalIgnoreCase);
+            var cpmCache = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(
+                StringComparer.OrdinalIgnoreCase);
 
             await Parallel.ForEachAsync(
                 uniqueQueries,
@@ -566,6 +615,51 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                 var isContent = contentCache.GetOrAdd($"{pkg.Id}|{pkg.Version}|{project.ProjectDirectory}",
                     _ => ContentPackageDetector.IsContentPackage(pkg.Id, pkg.Version, project.ProjectDirectory));
 
+                // Compute structural skip reason + diagnostic suffix per format
+                PackageSkipReason skipReason;
+                string diagnosticSuffix = "";
+
+                if (project.Format == "packages.config")
+                {
+                    skipReason = cmp.IsMajor ? PackageSkipReason.MajorUpdate : PackageSkipReason.None;
+                    if (isContent)
+                    {
+                        diagnosticSuffix = " [content package]";
+                    }
+                }
+                else // PackageReference
+                {
+                    // Check CPM (cached per project)
+                    var usesCpm = cpmCache.GetOrAdd(project.ProjectFilePath,
+                        path => PackageReferenceParser.ProjectUsesCpm(path));
+
+                    if (usesCpm)
+                    {
+                        skipReason = PackageSkipReason.Cpm;
+                        diagnosticSuffix = " [PackageReference - CPM: update Directory.Packages.props]";
+                    }
+                    else if (pkg.HasCondition)
+                    {
+                        skipReason = PackageSkipReason.Conditional;
+                        diagnosticSuffix = " [PackageReference - conditional reference, skipped]";
+                    }
+                    else if (pkg.IsFloating)
+                    {
+                        skipReason = PackageSkipReason.Floating;
+                        diagnosticSuffix = " [PackageReference - floating version, skipped]";
+                    }
+                    else if (pkg.HasVersionOverride)
+                    {
+                        skipReason = PackageSkipReason.VersionOverride;
+                        diagnosticSuffix = " [PackageReference - VersionOverride present, skipped]";
+                    }
+                    else
+                    {
+                        skipReason = cmp.IsMajor ? PackageSkipReason.MajorUpdate : PackageSkipReason.None;
+                        diagnosticSuffix = " [PackageReference]";
+                    }
+                }
+
                 var issue = new PackageIssueViewModel(new PackageIssue
                 {
                     ProjectName = project.ProjectName,
@@ -581,10 +675,9 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
                     ProjectFormat = project.Format,
                     PackagesConfigEntry = project.Format == "packages.config" ? pkg.ToXmlString() : "",
                     Severity = cmp.IsMajor ? IssueSeverity.Warning : IssueSeverity.Info,
-                    IsFixableByBatch = !cmp.IsMajor && project.Format == "packages.config",
-                    DiagnosticMessage = $"{pkg.Version} -> {result.Version} [{cmp.UpdateType}]"
-                        + (isContent ? " [content package]" : "")
-                        + (project.Format == "PackageReference" ? " [PackageReference - update not yet supported]" : ""),
+                    IsFixableByBatch = skipReason == PackageSkipReason.None,
+                    SkipReason = skipReason,
+                    DiagnosticMessage = $"{pkg.Version} -> {result.Version} [{cmp.UpdateType}]{diagnosticSuffix}",
                 });
 
                 _allResults.Add(issue);
@@ -897,7 +990,6 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
             var summary = parts.Count > 0 ? string.Join(", ", parts) : "no issues";
             this.StatusText = $"Scan complete: {summary} across {allProjects.Count} project(s) ({packagesConfigProjects.Count} packages.config, {packageReferenceProjects.Count} PackageReference).";
 
-            _hasCompletedScan = true;
             this.RaiseNotifyPropertyChangedEvent(nameof(this.AnalyseButtonLabel));
             this.RaiseNotifyPropertyChangedEvent(nameof(this.UpdateShownEnabled));
         }
@@ -1016,14 +1108,14 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
 
     /// <summary>
     /// Updates all visible (filtered) packages that are safe to batch-update.
-    /// Skips MAJOR updates and other non-batch-safe items.
+    /// Skips MAJOR updates and other non-batch-safe items (CPM, conditional, floating, VersionOverride).
     /// </summary>
     private async Task ExecuteUpdateShownAsync(object? parameter, CancellationToken cancellationToken)
     {
         var fixable = this.Issues.Where(i => i.IsFixableByBatch).ToList();
         if (fixable.Count == 0)
         {
-            this.StatusText = "No packages to update. MAJOR updates must be applied individually via the detail panel.";
+            this.StatusText = "No packages to update. MAJOR updates must be applied individually via the detail panel. PackageReference items using Central Package Management, conditional ItemGroups, floating versions, or VersionOverride are skipped.";
             return;
         }
 
@@ -1031,7 +1123,9 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
     }
 
     /// <summary>
-    /// Core update logic: edit packages.config + .csproj path tokens, restore, update assembly versions.
+    /// Core update logic: branches per ProjectFormat.
+    /// packages.config: edit packages.config + .csproj path tokens, restore, update assembly versions.
+    /// PackageReference: edit .csproj via PackageReferencePatcher, restore.
     /// </summary>
     private async Task UpdatePackagesAsync(List<PackageIssueViewModel> issuesToFix)
     {
@@ -1044,106 +1138,34 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
 
         try
         {
-            // Group by project (each project has its own packages.config + .csproj)
+            // Group by project (each project has its own packages.config / .csproj)
             var byProject = issuesToFix.GroupBy(i => i.ProjectPath);
 
             foreach (var projectGroup in byProject)
             {
                 var projectPath = projectGroup.Key;
                 var projectDir = Path.GetDirectoryName(projectPath) ?? ".";
-                var packagesConfigPath = Path.Combine(projectDir, "packages.config");
+                var projectFormat = projectGroup.First().ProjectFormat;
 
-                if (!File.Exists(packagesConfigPath))
+                if (projectFormat == "packages.config")
                 {
-                    _logger.WriteLine($"WARNING: packages.config not found at {packagesConfigPath}");
-                    continue;
+                    var (u, f) = await this.UpdatePackagesConfigProjectAsync(projectGroup.ToList(), projectPath, projectDir, cancellationToken);
+                    updated += u;
+                    failed += f;
                 }
-
-                // Backup
-                if (this.CreateBackup)
+                else if (projectFormat == "PackageReference")
                 {
-                    var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
-                    PackagesConfigPatcher.CreateBackup(packagesConfigPath, timestamp);
-                    PackagesConfigPatcher.CreateBackup(projectPath, timestamp);
-                    _logger.WriteLine($"Backup created ({timestamp})");
+                    var (u, f) = await this.UpdatePackageReferenceProjectAsync(projectGroup.ToList(), projectPath, projectDir, cancellationToken);
+                    updated += u;
+                    failed += f;
                 }
-
-                // Phase 1: Edit packages.config + .csproj path tokens
-                foreach (var issue in projectGroup)
+                else
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    this.StatusText = $"Updating {issue.PackageId} to {issue.SuggestedVersion}...";
-
-                    bool pcSuccess = PackagesConfigPatcher.UpdateVersion(
-                        packagesConfigPath, issue.PackageId, issue.CurrentVersion, issue.SuggestedVersion);
-
-                    bool csprojSuccess = PackagesConfigPatcher.UpdateCsprojPathTokens(
-                        projectPath, issue.PackageId, issue.CurrentVersion, issue.SuggestedVersion);
-
-                    if (pcSuccess)
-                    {
-                        updated++;
-                        _logger.WriteLine($"  Updated: {issue.PackageId} {issue.CurrentVersion} -> {issue.SuggestedVersion}");
-                        if (csprojSuccess)
-                        {
-                            _logger.WriteLine($"    .csproj path tokens updated");
-                        }
-                    }
-                    else
-                    {
-                        failed++;
-                        _logger.WriteLine($"  FAILED: {issue.PackageId} - not found in packages.config");
-                    }
-                }
-
-                // Phase 2: Trigger restore (build the project)
-                this.StatusText = "Restoring packages...";
-                _logger.WriteLine("Triggering NuGet restore...");
-
-                try
-                {
-                    var buildProjects = await this.Extensibility.Workspaces().QueryProjectsAsync(
-                        q => q.Where(p => p.Path == projectPath).With(p => p.Name),
-                        cancellationToken).ConfigureAwait(false);
-
-                    var buildProject = buildProjects.FirstOrDefault();
-                    if (buildProject is not null)
-                    {
-                        await buildProject.BuildAsync(cancellationToken).ConfigureAwait(false);
-                        _logger.WriteLine("Restore/build completed.");
-                    }
-                    else
-                    {
-                        _logger.WriteLine("WARNING: Could not find project for build. Run NuGet restore manually.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.WriteLine($"WARNING: Build/restore failed: {ex.Message}");
-                    _logger.WriteLine("Run NuGet restore manually: right-click solution > Restore NuGet Packages");
-                }
-
-                // Phase 3: Update assembly versions in <Reference Include> from restored DLLs
-                this.StatusText = "Updating assembly versions...";
-                foreach (var issue in projectGroup)
-                {
-                    int asmUpdated = PackagesConfigPatcher.UpdateAssemblyVersionsFromDlls(
-                        projectPath, projectDir, issue.PackageId, issue.SuggestedVersion);
-
-                    if (asmUpdated > 0)
-                    {
-                        _logger.WriteLine($"    {issue.PackageId}: assembly version updated in <Reference Include> ({asmUpdated} reference(s))");
-                    }
+                    _logger.WriteLine($"WARNING: Unsupported project format '{projectFormat}' for {projectPath}");
                 }
             }
 
             this.StatusText = $"Update complete. {updated} updated, {failed} failed. Click Analyse to refresh.";
-
-            // Mark successfully updated issues as fixed (no re-scan needed)
-            foreach (var issue in issuesToFix)
-            {
-                if (!issue.IsFixed) continue; // only mark if we set it below
-            }
 
             // Mark successfully updated issues — ViewModel raises property change events
             foreach (var issue in issuesToFix)
@@ -1170,6 +1192,184 @@ public class NuGetPackageFixerToolWindowViewModel : ToolWindowViewModelBase
         finally
         {
             this.IsScanning = false;
+        }
+    }
+
+    /// <summary>
+    /// Updates packages in a packages.config project.
+    /// Returns the number of updated and failed packages.
+    /// </summary>
+    private async Task<(int Updated, int Failed)> UpdatePackagesConfigProjectAsync(
+        List<PackageIssueViewModel> issues,
+        string projectPath,
+        string projectDir,
+        CancellationToken cancellationToken)
+    {
+        int updated = 0;
+        int failed = 0;
+        var packagesConfigPath = Path.Combine(projectDir, "packages.config");
+
+        if (!File.Exists(packagesConfigPath))
+        {
+            _logger.WriteLine($"WARNING: packages.config not found at {packagesConfigPath}");
+            return (updated, failed);
+        }
+
+        // Backup
+        if (this.CreateBackup)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+            PackagesConfigPatcher.CreateBackup(packagesConfigPath, timestamp);
+            PackagesConfigPatcher.CreateBackup(projectPath, timestamp);
+            _logger.WriteLine($"Backup created ({timestamp})");
+        }
+
+        // Phase 1: Edit packages.config + .csproj path tokens
+        foreach (var issue in issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            this.StatusText = $"Updating {issue.PackageId} to {issue.SuggestedVersion}...";
+
+            bool pcSuccess = PackagesConfigPatcher.UpdateVersion(
+                packagesConfigPath, issue.PackageId, issue.CurrentVersion, issue.SuggestedVersion);
+
+            bool csprojSuccess = PackagesConfigPatcher.UpdateCsprojPathTokens(
+                projectPath, issue.PackageId, issue.CurrentVersion, issue.SuggestedVersion);
+
+            if (pcSuccess)
+            {
+                updated++;
+                _logger.WriteLine($"  Updated: {issue.PackageId} {issue.CurrentVersion} -> {issue.SuggestedVersion}");
+                if (csprojSuccess)
+                {
+                    _logger.WriteLine($"    .csproj path tokens updated");
+                }
+            }
+            else
+            {
+                failed++;
+                _logger.WriteLine($"  FAILED: {issue.PackageId} - not found in packages.config");
+            }
+        }
+
+        await this.TriggerNuGetRestoreAsync(projectPath, cancellationToken);
+
+        // Phase 3: Update assembly versions in <Reference Include> from restored DLLs
+        this.StatusText = "Updating assembly versions...";
+        foreach (var issue in issues)
+        {
+            int asmUpdated = PackagesConfigPatcher.UpdateAssemblyVersionsFromDlls(
+                projectPath, projectDir, issue.PackageId, issue.SuggestedVersion);
+
+            if (asmUpdated > 0)
+            {
+                _logger.WriteLine($"    {issue.PackageId}: assembly version updated in <Reference Include> ({asmUpdated} reference(s))");
+            }
+        }
+
+        return (updated, failed);
+    }
+
+    /// <summary>
+    /// Updates packages in a PackageReference project.
+    /// Returns the number of updated and failed packages.
+    /// </summary>
+    private async Task<(int Updated, int Failed)> UpdatePackageReferenceProjectAsync(
+        List<PackageIssueViewModel> issues,
+        string projectPath,
+        string projectDir,
+        CancellationToken cancellationToken)
+    {
+        int updated = 0;
+        int failed = 0;
+
+        if (this.CreateBackup)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+            PackagesConfigPatcher.CreateBackup(projectPath, timestamp);
+            _logger.WriteLine($"Backup created ({timestamp})");
+        }
+
+        // Phase 1: load .csproj once, apply all edits in-memory, save once.
+        XDocument doc;
+        try
+        {
+            doc = XDocument.Load(projectPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"WARNING: Could not load {projectPath}: {ex.Message}");
+            return (0, issues.Count);
+        }
+
+        foreach (var issue in issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            this.StatusText = $"Updating {issue.PackageId} to {issue.SuggestedVersion}...";
+
+            var result = PackageReferencePatcher.UpdateVersionInDoc(
+                doc, issue.PackageId, issue.CurrentVersion, issue.SuggestedVersion);
+
+            if (result.Status == UpdateStatus.Success)
+            {
+                updated++;
+                _logger.WriteLine($"  Updated: {issue.PackageId} {issue.CurrentVersion} -> {issue.SuggestedVersion}");
+            }
+            else
+            {
+                failed++;
+                _logger.WriteLine($"  FAILED: {issue.PackageId} - {result.Message}");
+            }
+        }
+
+        if (updated > 0)
+        {
+            try
+            {
+                doc.Save(projectPath, SaveOptions.DisableFormatting);
+            }
+            catch (Exception ex)
+            {
+                _logger.WriteLine($"WARNING: Could not save {projectPath}: {ex.Message}");
+                return (0, issues.Count);
+            }
+        }
+
+        await this.TriggerNuGetRestoreAsync(projectPath, cancellationToken);
+
+        return (updated, failed);
+    }
+
+    /// <summary>
+    /// Triggers a NuGet restore for <paramref name="projectPath"/> by invoking the
+    /// VS build system. Failures are logged but do not throw — the user can restore manually.
+    /// </summary>
+    private async Task TriggerNuGetRestoreAsync(string projectPath, CancellationToken cancellationToken)
+    {
+        this.StatusText = "Restoring packages...";
+        _logger.WriteLine("Triggering NuGet restore...");
+
+        try
+        {
+            var buildProjects = await this.Extensibility.Workspaces().QueryProjectsAsync(
+                q => q.Where(p => p.Path == projectPath).With(p => p.Name),
+                cancellationToken).ConfigureAwait(false);
+
+            var buildProject = buildProjects.FirstOrDefault();
+            if (buildProject is not null)
+            {
+                await buildProject.BuildAsync(cancellationToken).ConfigureAwait(false);
+                _logger.WriteLine("Restore/build completed.");
+            }
+            else
+            {
+                _logger.WriteLine("WARNING: Could not find project for build. Run NuGet restore manually.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.WriteLine($"WARNING: Build/restore failed: {ex.Message}");
+            _logger.WriteLine("Run NuGet restore manually: right-click solution > Restore NuGet Packages");
         }
     }
 

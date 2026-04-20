@@ -23,6 +23,7 @@ public class PackageIssue
     [DataMember] public string ProjectFormat { get; set; } = "packages.config";
     [DataMember] public string DiagnosticMessage { get; set; } = string.Empty;
     [DataMember] public bool IsFixableByBatch { get; set; }
+    [DataMember] public PackageSkipReason SkipReason { get; set; } = PackageSkipReason.None;
     [DataMember] public string PackagesConfigEntry { get; set; } = string.Empty;
     [DataMember] public bool IsFixed { get; set; }
 

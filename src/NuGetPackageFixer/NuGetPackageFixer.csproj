@@ -9,7 +9,7 @@
     <NoWarn>$(NoWarn);VSEXTPREVIEW_OUTPUTWINDOW</NoWarn>
 
     <!-- Package / Marketplace metadata -->
-    <Version>0.1.9</Version>
+    <Version>0.1.10</Version>
     <Authors>Ardimedia</Authors>
     <Company>Ardimedia</Company>
     <Product>NuGet Package Fixer</Product>
@@ -25,11 +25,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.*" />
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.*" />
-    <PackageReference Include="NuGet.Protocol" Version="7.3.0" />
+    <PackageReference Include="NuGet.Protocol" Version="7.3.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ardimedia.VsExtensions.Common" Version="1.0.*" />
+    <PackageReference Include="Ardimedia.VsExtensions.Common" Version="1.1.0" />
   </ItemGroup>
 
   <ItemGroup>

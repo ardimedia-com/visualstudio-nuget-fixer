@@ -15,6 +15,7 @@ public class PackageIssueViewModel : NotifyPropertyChangedObject
 {
     private bool _isFixed;
     private bool _isFixableByBatch;
+    private PackageSkipReason _skipReason;
     private string _diagnosticMessage;
     private string _suggestedVersion;
 
@@ -36,6 +37,7 @@ public class PackageIssueViewModel : NotifyPropertyChangedObject
         _suggestedVersion = model.SuggestedVersion;
         _diagnosticMessage = model.DiagnosticMessage;
         _isFixableByBatch = model.IsFixableByBatch;
+        _skipReason = model.SkipReason;
         _isFixed = model.IsFixed;
     }
 
@@ -73,6 +75,13 @@ public class PackageIssueViewModel : NotifyPropertyChangedObject
     {
         get => _isFixableByBatch;
         set => this.SetProperty(ref _isFixableByBatch, value);
+    }
+
+    [DataMember]
+    public PackageSkipReason SkipReason
+    {
+        get => _skipReason;
+        set => this.SetProperty(ref _skipReason, value);
     }
 
     [DataMember]

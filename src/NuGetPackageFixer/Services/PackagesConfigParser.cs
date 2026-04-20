@@ -37,7 +37,7 @@ public static class PackagesConfigParser
 }
 
 /// <summary>
-/// Represents a single package entry from packages.config.
+/// Represents a single package entry from packages.config or PackageReference.
 /// </summary>
 public class PackageEntry
 {
@@ -46,6 +46,21 @@ public class PackageEntry
     public string TargetFramework { get; set; } = string.Empty;
     public string? AllowedVersions { get; set; }
     public bool IsDevelopmentDependency { get; set; }
+
+    /// <summary>
+    /// PackageReference only: true if the PackageReference element or its parent ItemGroup has a Condition attribute.
+    /// </summary>
+    public bool HasCondition { get; set; }
+
+    /// <summary>
+    /// PackageReference only: true if the version contains '*' (floating version).
+    /// </summary>
+    public bool IsFloating { get; set; }
+
+    /// <summary>
+    /// PackageReference only: true if VersionOverride attribute or child element is present.
+    /// </summary>
+    public bool HasVersionOverride { get; set; }
 
     /// <summary>
     /// Returns true if the current version is a prerelease version (contains '-').

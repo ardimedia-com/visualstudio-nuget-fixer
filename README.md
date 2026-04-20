@@ -63,7 +63,7 @@ This extension addresses all of these in a single tool window.
 
 | Category | Description | Auto-Fix |
 |---|---|---|
-| **Outdated** | Newer version available on NuGet feeds | Yes (packages.config) |
+| **Outdated** | Newer version available on NuGet feeds | Yes (packages.config, limited PackageReference) |
 | **Vulnerable** | Known security vulnerability (NuGet API) | Detection only |
 | **Deprecated** | Package deprecated by author | Detection only |
 | **Orphaned** | `.csproj` references package not in `packages.config` | Yes (remove from .csproj) |
@@ -93,6 +93,31 @@ Updates follow a multi-phase approach:
 3. **Assembly version sync** -- read actual assembly version from restored DLL, update `<Reference Include>` attribute
 
 This bypasses `nuget.exe update` and its broken dependency resolution entirely.
+
+### Fixing (PackageReference — limited)
+
+PackageReference auto-fix is supported in a limited, safe way:
+
+**Supported (auto-fix enabled):**
+- `<PackageReference Include="Id" Version="x.y.z" />` (attribute form)
+- `<PackageReference Include="Id"><Version>x.y.z</Version></PackageReference>` (child element form)
+
+**Skipped (clear reason, button disabled):**
+- **Central Package Management (CPM):** Project has `<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>` or a `Directory.Packages.props` anywhere from the project directory up to the drive root.
+- **Conditional references:** `PackageReference` or its containing `ItemGroup` has a `Condition` attribute.
+- **Floating versions:** Version contains `*`, e.g. `1.*`, `1.2.*-*`.
+- **VersionOverride:** `VersionOverride` attribute or child element is present.
+
+**What happens:**
+1. `.csproj` is backed up (timestamped `.bak` file).
+2. Version attribute or child element is updated in place.
+3. NuGet restore is triggered via VS build system.
+4. No assembly-version sync (not applicable to PackageReference).
+
+**Limitations:**
+- No `Directory.Packages.props` editing (CPM projects must update the props file manually).
+- Restore failures leave the new version in `.csproj` (same failure mode as `packages.config`).
+- XML round-trip may normalize insignificant whitespace (acceptable and consistent with other patchers).
 
 ### Version Comparison Edge Cases
 

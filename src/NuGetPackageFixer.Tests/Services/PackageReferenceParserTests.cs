@@ -150,6 +150,213 @@ public class PackageReferenceParserTests
         Assert.AreEqual(2, result.Count);
     }
 
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void DetectsConditionOnElement()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="BenchmarkDotNet" Version="0.13.5" Condition="'$(Configuration)' == 'Debug'" />
+                <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.Parse(csproj);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(p => p.Id == "BenchmarkDotNet").HasCondition);
+        Assert.IsFalse(result.First(p => p.Id == "Newtonsoft.Json").HasCondition);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void DetectsConditionOnItemGroup()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+                <PackageReference Include="System.Memory" Version="4.5.5" />
+              </ItemGroup>
+              <ItemGroup>
+                <PackageReference Include="Serilog" Version="4.3.1" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.Parse(csproj);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(p => p.Id == "System.Memory").HasCondition);
+        Assert.IsFalse(result.First(p => p.Id == "Serilog").HasCondition);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void DetectsFloatingVersion()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="AutoMapper" Version="12.*" />
+                <PackageReference Include="FluentAssertions" Version="6.12.0" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.Parse(csproj);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(p => p.Id == "AutoMapper").IsFloating);
+        Assert.IsFalse(result.First(p => p.Id == "FluentAssertions").IsFloating);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void DetectsVersionOverrideAttribute()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="FluentValidation" Version="11.5.0" VersionOverride="11.6.0" />
+                <PackageReference Include="Polly" Version="8.0.0" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.Parse(csproj);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(p => p.Id == "FluentValidation").HasVersionOverride);
+        Assert.IsFalse(result.First(p => p.Id == "Polly").HasVersionOverride);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void DetectsVersionOverrideElement()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="Dapper">
+                  <Version>2.0.123</Version>
+                  <VersionOverride>2.1.0</VersionOverride>
+                </PackageReference>
+                <PackageReference Include="Moq" Version="4.18.4" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.Parse(csproj);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.First(p => p.Id == "Dapper").HasVersionOverride);
+        Assert.IsFalse(result.First(p => p.Id == "Moq").HasVersionOverride);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void ProjectUsesCpm_ManagePackageVersionsCentrally_True()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Newtonsoft.Json" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.ProjectUsesCpm(csproj);
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void ProjectUsesCpm_DirectoryPackagesProps_True()
+    {
+        // Create Directory.Packages.props in the temp directory
+        CreateFile("Directory.Packages.props", """
+            <Project>
+              <PropertyGroup>
+                <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="Newtonsoft.Json" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.ProjectUsesCpm(csproj);
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void ProjectUsesCpm_NoIndicators_False()
+    {
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.ProjectUsesCpm(csproj);
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void ProjectUsesCpm_NonExistentFile_False()
+    {
+        var result = PackageReferenceParser.ProjectUsesCpm(Path.Combine(_tempDir, "nonexistent.csproj"));
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void ProjectUsesCpm_ExplicitFalse_IgnoresDirectoryPackagesProps()
+    {
+        // Directory.Packages.props alone would normally trigger CPM detection...
+        CreateFile("Directory.Packages.props", """
+            <Project>
+              <PropertyGroup>
+                <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        // ...but the project explicitly opts out.
+        var csproj = CreateFile("test.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = PackageReferenceParser.ProjectUsesCpm(csproj);
+
+        Assert.IsFalse(result);
+    }
+
     private string CreateFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);
